@@ -24,6 +24,7 @@ describe("reconciliarRegistros", () => {
   it("deve retornar lista vazia sem registros", () => {
     const resultado = reconciliarRegistros([])
     expect(resultado.pedidosAgrupados).toEqual([])
+    expect(resultado.totalRegistrosLidos).toBe(0)
     expect(resultado.totalImportacoes).toBe(0)
     expect(resultado.importacaoIds).toEqual([])
   })
@@ -66,7 +67,7 @@ describe("reconciliarRegistros", () => {
       reg({
         importacao_id: "imp-002",
         importado_em: "2026-01-25T10:00:00Z",
-        linha_excel: 1,
+        linha_excel: 5,
         produto_codigo: "P001",
         quantidade: 12,
         valor_total_calculado: 300,
@@ -74,7 +75,7 @@ describe("reconciliarRegistros", () => {
     ]
     const resultado = reconciliarRegistros(registros)
 
-    // Apenas a versão mais recente (imp-002) deve aparecer
+    // Apenas a versão mais recente (imp-002) deve aparecer para o item
     expect(resultado.pedidosAgrupados[0].items).toHaveLength(1)
     expect(resultado.pedidosAgrupados[0].items[0].quantidade).toBe(12)
     expect(resultado.pedidosAgrupados[0].items[0].valor_total_calculado).toBe(300)
@@ -95,14 +96,12 @@ describe("reconciliarRegistros", () => {
   })
 
   it("nao deve interpretar ausencia em carga incremental como cancelamento", () => {
-    // PED-001 existe na primeira importacao, nao na segunda
     const registros = [
       reg({ importacao_id: "imp-001", pedido: "PED-001" }),
       reg({ importacao_id: "imp-002", pedido: "PED-002" }),
     ]
     const resultado = reconciliarRegistros(registros)
 
-    // Ambos os pedidos devem continuar aparecendo
     expect(resultado.pedidosAgrupados).toHaveLength(2)
     const pedidos = resultado.pedidosAgrupados.map((p) => p.pedido)
     expect(pedidos).toContain("PED-001")
@@ -138,6 +137,100 @@ describe("reconciliarRegistros", () => {
 
     expect(resultado.pedidosAgrupados[0].pedido).toBe("PED-002")
     expect(resultado.pedidosAgrupados[1].pedido).toBe("PED-001")
+  })
+
+  it("deve sinalizar ambiguidade quando mesmo produto tem quantidades diferentes em importacoes distintas", () => {
+    const registros = [
+      reg({
+        importacao_id: "imp-001",
+        importado_em: "2026-01-10T10:00:00Z",
+        linha_excel: 1,
+        produto_codigo: "P001",
+        quantidade: 10,
+        valor_total_calculado: 255,
+      }),
+      reg({
+        importacao_id: "imp-002",
+        importado_em: "2026-01-25T10:00:00Z",
+        linha_excel: 3,
+        produto_codigo: "P001",
+        quantidade: 15,
+        valor_total_calculado: 382.5,
+      }),
+    ]
+    const resultado = reconciliarRegistros(registros)
+
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(true)
+    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).not.toBeNull()
+    // Deve usar a versão mais recente (imp-002), não somar ambas
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(1)
+    expect(resultado.pedidosAgrupados[0].items[0].quantidade).toBe(15)
+    expect(resultado.pedidosAgrupados[0].valor_total).toBe(382.5)
+  })
+
+  it("nao deve sinalizar ambiguidade quando mesmo produto tem mesma quantidade em importacoes distintas", () => {
+    const registros = [
+      reg({
+        importacao_id: "imp-001",
+        importado_em: "2026-01-10T10:00:00Z",
+        linha_excel: 1,
+        produto_codigo: "P001",
+        quantidade: 10,
+        valor_total_calculado: 255,
+      }),
+      reg({
+        importacao_id: "imp-002",
+        importado_em: "2026-01-25T10:00:00Z",
+        linha_excel: 5,
+        produto_codigo: "P001",
+        quantidade: 10,
+        valor_total_calculado: 255,
+      }),
+    ]
+    const resultado = reconciliarRegistros(registros)
+
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
+    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).toBeNull()
+  })
+
+  it("deve sinalizar ambiguidade para linhas deslocadas entre importacoes", () => {
+    // Mesmo produto, mesma quantidade, mas linha_excel diferente entre importacoes
+    const registros = [
+      reg({
+        importacao_id: "imp-001",
+        importado_em: "2026-01-10T10:00:00Z",
+        linha_excel: 1,
+        produto_codigo: "P001",
+        quantidade: 10,
+      }),
+      reg({
+        importacao_id: "imp-002",
+        importado_em: "2026-01-25T10:00:00Z",
+        linha_excel: 7,
+        produto_codigo: "P001",
+        quantidade: 10,
+      }),
+    ]
+    const resultado = reconciliarRegistros(registros)
+
+    // linha_excel mudou (1 -> 7) mas quantidade é a mesma, nao e ambiguidade
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
+    // Deve usar a versao mais recente
+    expect(resultado.pedidosAgrupados[0].items[0].linha_excel).toBe(7)
+  })
+
+  it("deve lidar com produto repetido em pedidos diferentes", () => {
+    const registros = [
+      reg({ loja: "Loja 01", pedido: "PED-001", produto_codigo: "P001", quantidade: 10 }),
+      reg({ loja: "Loja 01", pedido: "PED-002", produto_codigo: "P001", quantidade: 5 }),
+    ]
+    const resultado = reconciliarRegistros(registros)
+
+    expect(resultado.pedidosAgrupados).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].items[0].quantidade).toBe(10)
+    expect(resultado.pedidosAgrupados[1].items[0].quantidade).toBe(5)
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
+    expect(resultado.pedidosAgrupados[1].tem_ambiguidade).toBe(false)
   })
 
   describe("filtrarPorPedido", () => {

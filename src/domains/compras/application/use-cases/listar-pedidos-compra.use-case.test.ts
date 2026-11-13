@@ -26,6 +26,8 @@ describe("ListarPedidosCompraUseCase", () => {
           valor_total: 100,
           importacao_ids: ["imp-001"],
           importado_em_mais_recente: "2026-01-10T10:00:00Z",
+          tem_ambiguidade: false,
+          mensagem_ambiguidade: null,
         },
       ],
       total: 1,
@@ -33,6 +35,8 @@ describe("ListarPedidosCompraUseCase", () => {
       tamanho_pagina: 20,
       total_paginas: 1,
       origem_disponivel: true,
+      total_registros_origem: 2,
+      total_importacoes: 1,
       mensagem_indisponibilidade: null,
     })
 
@@ -48,9 +52,13 @@ describe("ListarPedidosCompraUseCase", () => {
     expect(resultado.pedidos[0].loja).toBe("Loja 01")
     expect(resultado.tem_dados).toBe(true)
     expect(resultado.origem_disponivel).toBe(true)
+    expect(resultado.total_registros_origem).toBe(2)
+    expect(resultado.total_importacoes).toBe(1)
     expect(resultado.pedidos[0].quantidade_total_recebida).toBeNull()
     expect(resultado.pedidos[0].valor_total_pendente).toBeNull()
     expect(resultado.pedidos[0].status).toBeNull()
+    expect(resultado.pedidos[0].tem_ambiguidade).toBe(false)
+    expect(resultado.pedidos[0].mensagem_ambiguidade).toBeNull()
   })
 
   it("should return empty result when repository returns no pedidos", async () => {
@@ -65,8 +73,10 @@ describe("ListarPedidosCompraUseCase", () => {
       tamanho_pagina: 20,
       total_paginas: 0,
       origem_disponivel: false,
+      total_registros_origem: 0,
+      total_importacoes: 0,
       mensagem_indisponibilidade:
-        "Não foi possível acessar a view de pedidos de compra.",
+        "Autorização de acesso por filial não configurada. Dados indisponíveis.",
     })
 
     const resultado = await useCase.executar({})
@@ -90,6 +100,8 @@ describe("ListarPedidosCompraUseCase", () => {
       tamanho_pagina: 20,
       total_paginas: 0,
       origem_disponivel: true,
+      total_registros_origem: 0,
+      total_importacoes: 0,
       mensagem_indisponibilidade: null,
     })
 

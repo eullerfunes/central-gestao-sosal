@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ChevronRight, AlertCircle } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { PedidoCompraSupabaseRepository } from "@/domains/compras/infrastructure/repositories/pedido-compra.repository"
 import { ListarPedidosCompraUseCase } from "@/domains/compras/application/use-cases/listar-pedidos-compra.use-case"
@@ -70,6 +70,11 @@ export default async function ComprasPage({
     tamanho_pagina: PAGE_SIZE,
   })
 
+  const temAmbiguidade = resultado.pedidos.some((p) => p.tem_ambiguidade)
+  const mensagemAmbiguidade =
+    resultado.pedidos.find((p) => p.mensagem_ambiguidade)?.mensagem_ambiguidade ??
+    null
+
   if (!resultado.origem_disponivel) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -105,7 +110,7 @@ export default async function ComprasPage({
           <CardTitle className="text-sm font-medium">Filtros</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <form className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <form action="/compras" method="get" id="filtros-compras" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-medium">Loja</Label>
               <Input
@@ -157,12 +162,31 @@ export default async function ComprasPage({
             </div>
           </form>
           <div className="flex justify-end mt-4">
+            <Button variant="outline" size="sm" type="submit" form="filtros-compras">
+              Aplicar filtros
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/compras">Limpar filtros</Link>
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {temAmbiguidade && (
+        <Card className="border border-border p-4 mb-6 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-yellow-900">
+              Atenção: dados ambíguos entre importações
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-yellow-800">
+              {mensagemAmbiguidade ??
+                "Totais podem não ser definitivos devido a divergências entre importações."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <main className="flex-1 overflow-y-auto p-4">
         <div className="rounded-md border border-border">
@@ -195,27 +219,25 @@ export default async function ComprasPage({
                     key={`${pedido.loja}||${pedido.pedido}`}
                     className="hover:bg-accent transition-colors"
                   >
-                    <Link
-                      href={`/compras/${pedido.pedido}?loja=${encodeURIComponent(pedido.loja)}`}
-                    >
-                      <a className="block p-4">
-                        <TableCell className="font-medium">
-                          {pedido.pedido}
-                        </TableCell>
-                        <TableCell>{pedido.loja}</TableCell>
-                        <TableCell>{pedido.fornecedor_nome}</TableCell>
-                        <TableCell className="text-right">
-                          {valorFormatado(pedido.valor_total)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {pedido.quantidade_total}
-                        </TableCell>
-                        <TableCell>{dataFormatada(pedido.data_pedido)}</TableCell>
-                        <TableCell className="text-right">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </TableCell>
-                      </a>
-                    </Link>
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/compras/${pedido.pedido}?loja=${encodeURIComponent(pedido.loja)}`}
+                      >
+                        {pedido.pedido}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{pedido.loja}</TableCell>
+                    <TableCell>{pedido.fornecedor_nome}</TableCell>
+                    <TableCell className="text-right">
+                      {valorFormatado(pedido.valor_total)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {pedido.quantidade_total}
+                    </TableCell>
+                    <TableCell>{dataFormatada(pedido.data_pedido)}</TableCell>
+                    <TableCell className="text-right">
+                      <ChevronRightIcon />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -223,60 +245,76 @@ export default async function ComprasPage({
           </div>
         </div>
 
-        {resultado.total_paginas > 1 && (
-          <div className="flex items-center justify-between mt-6 px-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>
               Página {resultado.pagina} de {resultado.total_paginas}
               &nbsp;({resultado.total} pedido(s))
-            </div>
-            <div className="flex items-center gap-2">
-              {resultado.pagina > 1 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                >
-                  <Link
-                    href={construirURLFiltros({
-                      loja,
-                      fornecedor,
-                      pedido,
-                      produto,
-                      data_inicial: dataInicial,
-                      data_final: dataFinal,
-                      pagina: String(resultado.pagina - 1),
-                    })}
-                  >
-                    Anterior
-                  </Link>
-                </Button>
-              )}
-              {resultado.pagina < resultado.total_paginas && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                >
-                  <Link
-                    href={construirURLFiltros({
-                      loja,
-                      fornecedor,
-                      pedido,
-                      produto,
-                      data_inicial: dataInicial,
-                      data_final: dataFinal,
-                      pagina: String(resultado.pagina + 1),
-                    })}
-                  >
-                    Próxima
-                  </Link>
-                </Button>
-              )}
-            </div>
+            </span>
+            {resultado.total_registros_origem > 0 && (
+              <span className="text-xs">
+                ({resultado.total_registros_origem} registro(s) de origem /
+                {resultado.total_importacoes} importação(ões))
+              </span>
+            )}
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            {resultado.pagina > 1 && (
+              <Button variant="outline" size="sm" asChild>
+                <Link
+                  href={construirURLFiltros({
+                    loja,
+                    fornecedor,
+                    pedido,
+                    produto,
+                    data_inicial: dataInicial,
+                    data_final: dataFinal,
+                    pagina: String(resultado.pagina - 1),
+                  })}
+                >
+                  Anterior
+                </Link>
+              </Button>
+            )}
+            {resultado.pagina < resultado.total_paginas && (
+              <Button variant="outline" size="sm" asChild>
+                <Link
+                  href={construirURLFiltros({
+                    loja,
+                    fornecedor,
+                    pedido,
+                    produto,
+                    data_inicial: dataInicial,
+                    data_final: dataFinal,
+                    pagina: String(resultado.pagina + 1),
+                  })}
+                >
+                  Próxima
+                </Link>
+              </Button>
+            )}
+          </div>
+        </div>
       </main>
     </div>
+  )
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg
+      className="h-4 w-4 text-muted-foreground"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 5l7 7-7 7"
+      />
+    </svg>
   )
 }
 

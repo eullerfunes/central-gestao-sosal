@@ -40,6 +40,8 @@ describe("ConsultarPedidoCompraUseCase", () => {
           situacao_entrega: null,
         },
       ],
+      tem_ambiguidade: false,
+      mensagem_ambiguidade: null,
     })
 
     const resultado = await useCase.executar("Loja 01", "PED-001")
@@ -105,6 +107,8 @@ describe("ConsultarPedidoCompraUseCase", () => {
           importacao_ids: ["imp-001"],
           importado_em_mais_recente: "2026-01-10T10:00:00Z",
           items: [],
+          tem_ambiguidade: false,
+          mensagem_ambiguidade: null,
         })
       }
       return Promise.resolve(null)

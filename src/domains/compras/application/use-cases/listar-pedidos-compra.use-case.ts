@@ -45,6 +45,8 @@ export class ListarPedidosCompraUseCase {
         valor_total: p.valor_total,
         importacao_ids: p.importacao_ids,
         importado_em_mais_recente: p.importado_em_mais_recente || null,
+        tem_ambiguidade: p.tem_ambiguidade,
+        mensagem_ambiguidade: p.mensagem_ambiguidade,
         quantidade_total_recebida: null,
         quantidade_total_pendente: null,
         valor_total_pendente: null,
@@ -61,6 +63,8 @@ export class ListarPedidosCompraUseCase {
       total_paginas: resultado.total_paginas,
       tem_dados: resultado.pedidos.length > 0,
       origem_disponivel: resultado.origem_disponivel,
+      total_registros_origem: resultado.total_registros_origem,
+      total_importacoes: resultado.total_importacoes,
       mensagem_indisponibilidade: resultado.mensagem_indisponibilidade,
     }
   }

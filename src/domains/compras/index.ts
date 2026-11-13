@@ -39,9 +39,7 @@ export {
 export {
   reconciliarRegistros,
   filtrarPorPedido,
-  geraChaveItem,
   geraChavePedido,
-  type ItemVersaoMaisRecente,
 } from "./application/reconciliation/pedido-compra-reconciliation"
 
 export {

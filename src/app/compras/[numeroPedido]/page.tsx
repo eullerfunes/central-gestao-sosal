@@ -171,6 +171,16 @@ export default async function PedidoDetalhePage({
                 {pedido.quantidade_total}
               </div>
             </div>
+            {pedido.tem_ambiguidade && (
+              <div className="p-4 bg-yellow-50/50 rounded-lg border border-yellow-200">
+                <div className="text-xs text-yellow-800 uppercase tracking-wider mb-1">
+                  Ambiguidade de itens
+                </div>
+                <div className="text-sm text-yellow-900">
+                  {pedido.mensagem_ambiguidade ?? "Totais podem não ser definitivos."}
+                </div>
+              </div>
+            )}
             <div className="p-4 bg-muted/50 rounded-lg">
               <div className="text-xs text-muted-foreground uppercase tracking-wider">
                 Qtd. recebida

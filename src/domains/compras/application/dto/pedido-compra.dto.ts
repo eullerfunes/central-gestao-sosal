@@ -16,6 +16,10 @@ export interface PedidoCompraResumoDTO {
   valor_total: number
   importacao_ids: string[]
   importado_em_mais_recente: string | null
+  /** Indica que a identidade dos itens não é confiável entre importacoes */
+  tem_ambiguidade: boolean
+  /** Mensagem descritiva da ambiguidade, quando presente */
+  mensagem_ambiguidade: string | null
   /* Campos indisponíveis na view — nunca preenchidos com zero */
   quantidade_total_recebida: null
   quantidade_total_pendente: null
@@ -75,5 +79,7 @@ export interface ListarPedidosResponse {
   total_paginas: number
   tem_dados: boolean
   origem_disponivel: boolean
+  total_registros_origem: number
+  total_importacoes: number
   mensagem_indisponibilidade: string | null
 }

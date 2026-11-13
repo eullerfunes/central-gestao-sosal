@@ -59,6 +59,8 @@ export function adaptarRegistrosDeOrigem(
         valor_total: reg.valor_total_calculado,
         importacao_ids: [reg.importacao_id],
         importado_em_mais_recente: reg.importado_em,
+        tem_ambiguidade: false,
+        mensagem_ambiguidade: null,
       })
     }
   }

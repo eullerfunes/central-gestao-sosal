@@ -45,4 +45,8 @@ export interface PedidoCompraAgrupado {
   valor_total: number
   importacao_ids: string[]
   importado_em_mais_recente: string
+  /** Indica que a identidade dos itens não é confiável entre importacoes */
+  tem_ambiguidade: boolean
+  /** Mensagem descritiva da ambiguidade, quando presente */
+  mensagem_ambiguidade: string | null
 }

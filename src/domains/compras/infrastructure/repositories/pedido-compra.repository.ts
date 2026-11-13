@@ -11,10 +11,12 @@
  * - View candidata: "Só Sal".v_rpa_pedidos_compra.
  *
  * Segurança:
- * - Verifica sessão de autenticação antes de consultar.
- * - Se não houver sessão, retorna estado de acesso negado.
- * - Se a view não existir ou não houver permissão de SELECT,
- *   retorna estado de indisponibilidade (não lista vazia legítima).
+ * - Verifica sessao de autenticacao antes de consultar.
+ * - Autenticacao nao implica autorizacao por filial.
+ * - Dados reais so sao expostos quando politica de autorizacao por filial
+ *   estiver validada no servidor e na fonte de dados.
+ * - Nao expoe mensagens tecnicas ou detalhes internos do banco.
+ * - Nao concede SELECT automaticamente na view existente.
  */
 
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -29,10 +31,8 @@ import {
 } from "../../application/reconciliation/pedido-compra-reconciliation"
 import type { PedidoCompraOrigemRegistro } from "../../domain/entities/pedido-compra-origem"
 
-const VIEW_NAME = '"Só Sal".v_rpa_pedidos_compra'
-
 type LeituraResultado =
-  | { tipo: "sucesso"; registros: Record<string, unknown>[] }
+  | { tipo: "sucesso"; registros: PedidoCompraOrigemRegistro[] }
   | { tipo: "indisponivel"; mensagem: string }
   | { tipo: "acesso_negado" }
 
@@ -58,9 +58,11 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
     }
 
     const { registros } = leitura
-    const { pedidosAgrupados } = reconciliarRegistros(
-      registros as unknown as PedidoCompraOrigemRegistro[],
-    )
+    const {
+      pedidosAgrupados,
+      totalRegistrosLidos,
+      totalImportacoes,
+    } = reconciliarRegistros(registros)
 
     let filtrados: PedidoCompraAgrupado[] = pedidosAgrupados
 
@@ -110,6 +112,8 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
       tamanho_pagina: tamanhoPagina,
       total_paginas: Math.ceil(filtrados.length / tamanhoPagina),
       origem_disponivel: true,
+      total_registros_origem: totalRegistrosLidos,
+      total_importacoes: totalImportacoes,
       mensagem_indisponibilidade: null,
     }
   }
@@ -124,9 +128,7 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
       return null
     }
 
-    const { pedidosAgrupados } = reconciliarRegistros(
-      leitura.registros as unknown as PedidoCompraOrigemRegistro[],
-    )
+    const { pedidosAgrupados } = reconciliarRegistros(leitura.registros)
     return pedidosAgrupados.find(
       (p: PedidoCompraAgrupado) => p.loja === loja && p.pedido === pedido,
     ) ?? null
@@ -153,25 +155,54 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
       }
     }
 
-    try {
-      const { data, error } = await supabase
-        .from(VIEW_NAME)
-        .select("*")
+    // Autorização por filial não é validada neste módulo.
+    // Não expor dados reais enquanto a política de autorização por filial
+    // não estiver aprovada no servidor e na fonte de dados.
+    return {
+      tipo: "indisponivel",
+      mensagem:
+        "Autorização de acesso por filial não configurada. Dados indisponíveis.",
+    }
 
-      if (error) {
-        return {
-          tipo: "indisponivel",
-          mensagem: `Não foi possível acessar a view de pedidos de compra: ${error.message}`,
+    // Quando a autorizacao por filial for aprovada, desbloquear a leitura abaixo:
+    /*
+    try {
+      const todosRegistros: Record<string, unknown>[] = []
+      let offset = 0
+      let temMais = true
+
+      while (temMais) {
+        const { data, error } = await supabase
+          .schema("Só Sal")
+          .from("v_rpa_pedidos_compra")
+          .select("*")
+          .range(offset, offset + 999)
+
+        if (error) {
+          return {
+            tipo: "indisponivel",
+            mensagem: "Nao foi possível acessar os dados de pedidos de compra.",
+          }
         }
+
+        const lote = data ?? []
+        todosRegistros.push(...lote)
+        offset += 1000
+        temMais = lote.length === 1000
       }
 
-      return { tipo: "sucesso", registros: (data ?? []) as Record<string, unknown>[] }
+      const registros = todosRegistros.map((row) =>
+        extrairRegistroDeOrigem(row),
+      )
+
+      return { tipo: "sucesso", registros }
     } catch {
       return {
         tipo: "indisponivel",
-        mensagem: "Não foi possível conectar à fonte de dados de pedidos.",
+        mensagem: "Nao foi possível conectar à fonte de dados de pedidos.",
       }
     }
+    */
   }
 
   private resultadoAcessoNegado(
@@ -185,6 +216,8 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
       tamanho_pagina: tamanhoPagina,
       total_paginas: 0,
       origem_disponivel: false,
+      total_registros_origem: 0,
+      total_importacoes: 0,
       mensagem_indisponibilidade:
         "Acesso negado: sessão de autenticação não encontrada.",
     }
@@ -202,6 +235,8 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
       tamanho_pagina: tamanhoPagina,
       total_paginas: 0,
       origem_disponivel: false,
+      total_registros_origem: 0,
+      total_importacoes: 0,
       mensagem_indisponibilidade: mensagem,
     }
   }

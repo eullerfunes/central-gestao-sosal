@@ -40,5 +40,7 @@ export interface ListarPedidosResultado {
   tamanho_pagina: number
   total_paginas: number
   origem_disponivel: boolean
+  total_registros_origem: number
+  total_importacoes: number
   mensagem_indisponibilidade: string | null
 }

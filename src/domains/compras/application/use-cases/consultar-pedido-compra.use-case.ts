@@ -53,6 +53,8 @@ export class ConsultarPedidoCompraUseCase {
       valor_total: pedidoAgrupado.valor_total,
       importacao_ids: pedidoAgrupado.importacao_ids,
       importado_em_mais_recente: pedidoAgrupado.importado_em_mais_recente || null,
+      tem_ambiguidade: pedidoAgrupado.tem_ambiguidade,
+      mensagem_ambiguidade: pedidoAgrupado.mensagem_ambiguidade,
       quantidade_total_recebida: null,
       quantidade_total_pendente: null,
       valor_total_pendente: null,
