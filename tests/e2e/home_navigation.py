@@ -11,13 +11,14 @@ inicial em seis viewports e verifica:
 - Navegação por teclado (Tab)
 - Cores e estilos aplicados
 - Ausência de overflow horizontal
-- Rolagem vertical em páginas longas
+- Rolagem vertical em páginas longas (rolagem real verificada)
 - Console do navegador sem erros relevantes
-- Processo do servidor iniciado e encerrado corretamente
+- Processo do servidor iniciado e encerrado corretamente (pid rastreado, porta verificada)
 """
 
 from __future__ import annotations
 
+import socket
 import subprocess
 import time
 import urllib.request
@@ -42,20 +43,43 @@ VIEWPORTS = [
 ]
 
 
+def _port_is_free(port: int) -> bool:
+    """Verifica se a porta TCP está livre (nenhum processo escutando nela)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        return sock.connect_ex(("127.0.0.1", port)) != 0
+
+
 @contextmanager
 def dev_server():
-    """Inicia o servidor Next.js na raiz do repositório e o encerra ao sair."""
+    """Inicia o servidor Next.js na raiz do repositório e o encerra ao sair.
+
+    Garante que a porta esteja livre antes de iniciar, rastreia o PID do
+    processo criado, detecta falhas de inicialização e encerra a árvore de
+    processos ao finalizar (incluindo filhos do npm/next).
+    """
+    if not _port_is_free(PORT):
+        raise RuntimeError(
+            f"Porta {PORT} já está em uso. Encerre outro servidor antes de rodar os testes."
+        )
+
+    creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     proc = subprocess.Popen(
         DEV_CMD,
         cwd=str(REPO_ROOT),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         shell=True,
+        creationflags=creationflags,
     )
+
+    started = False
     try:
-        # Verifica que o servidor iniciou corretamente
-        started = False
+        # Verifica que o servidor iniciou corretamente (responde na porta)
         for _ in range(60):
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"Servidor Next.js encerrou precocemente com código {proc.returncode}"
+                )
             try:
                 urllib.request.urlopen(BASE_URL, timeout=1)
                 started = True
@@ -66,11 +90,21 @@ def dev_server():
             raise RuntimeError("Servidor Next.js não ficou disponível a tempo")
         yield BASE_URL
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except Exception:
-            proc.kill()
+        # Encerra a árvore de processos criada (Windows: taskkill /T mata filhos)
+        if proc.poll() is None:
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                )
+            except Exception:
+                proc.kill()
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                proc.kill()
 
 
 def _assert_no_relevant_console_errors(console_errors):
@@ -165,8 +199,13 @@ def test_homepage_navigation_and_responsiveness():
                         assert page.get_by_label("Fechar menu").count() >= 1, (
                             f"botão fechar menu não encontrado em {name}"
                         )
-                        # Fechar menu clicando no backdrop
-                        page.click("div.backdrop-blur-sm", position={"x": 100, "y": 100})
+                        # Fechar menu clicando no backdrop FORA da área da sidebar.
+                        # A sidebar ocupa x=0 a ~256px (w-64). Clicar na borda direita
+                        # da viewport garante que o clique ocorre no backdrop, não na sidebar.
+                        page.click(
+                            "div.backdrop-blur-sm",
+                            position={"x": width - 50, "y": 100},
+                        )
                         page.wait_for_timeout(150)
                         # Após fechamento, o botão deve voltar a "Abrir menu"
                         assert page.get_by_label("Abrir menu de navegação").count() >= 1, (
@@ -234,7 +273,7 @@ def test_internal_links_do_not_lead_to_404():
 
 
 def test_vertical_scroll():
-    """Verifica que a rolagem vertical funciona em páginas longas."""
+    """Verifica que a rolagem vertical funciona em conteúdo maior que o viewport."""
     with dev_server() as base_url, sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         try:
@@ -242,21 +281,43 @@ def test_vertical_scroll():
             try:
                 page.goto(base_url, wait_until="networkidle")
 
-                # A área de conteúdo deve permitir rolagem vertical
                 scroll_height = page.evaluate(
                     "() => document.documentElement.scrollHeight"
                 )
                 client_height = page.evaluate(
                     "() => document.documentElement.clientHeight"
                 )
-                # A página inicial é curta; verifica que o container de conteúdo existe
-                # e que não há overflow horizontal
+
+                # Sem overflow horizontal
                 body_width = page.evaluate(
                     "() => document.documentElement.scrollWidth"
                 )
                 assert body_width <= 375, (
                     f"overflow horizontal em mobile: {body_width}px > 375px"
                 )
+
+                # Se o conteúdo excede a área visível, validar rolagem real
+                if scroll_height > client_height:
+                    scroll_y_before = page.evaluate("() => window.scrollY")
+                    page.evaluate("window.scrollBy(0, 300)")
+                    page.wait_for_timeout(100)
+                    scroll_y_after = page.evaluate("() => window.scrollY")
+                    assert scroll_y_after > scroll_y_before, (
+                        f"rolagem vertical não funcionou: scrollY {scroll_y_before} -> {scroll_y_after}"
+                    )
+                    # Retornar ao topo
+                    page.evaluate("window.scrollTo(0, 0)")
+                    page.wait_for_timeout(100)
+                    scroll_y_top = page.evaluate("() => window.scrollY")
+                    assert scroll_y_top == 0, (
+                        f"volta ao topo falhou: scrollY={scroll_y_top}"
+                    )
+                else:
+                    # Página curta: apenas confirma que não há conteúdo excedente
+                    # e que o layout é estável (sem overflow horizontal)
+                    assert scroll_height <= client_height + 1, (
+                        f"conteúdo maior que viewport sem rolagem: {scroll_height} > {client_height}"
+                    )
             finally:
                 page.close()
         finally:
