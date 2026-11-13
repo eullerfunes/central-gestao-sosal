@@ -24,7 +24,7 @@ export function ShellLayout({ children, className }: ShellLayoutProps) {
 
       <main
         className={cn(
-          "flex flex-col min-w-0 overflow-hidden lg:ml-64",
+          "flex flex-col h-full min-w-0 overflow-hidden lg:ml-64",
           className,
         )}
       >

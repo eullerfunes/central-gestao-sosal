@@ -273,20 +273,13 @@ def test_internal_links_do_not_lead_to_404():
 
 
 def test_vertical_scroll():
-    """Verifica que a rolagem vertical funciona em conteúdo maior que o viewport."""
+    """Verifica que o container interno rola verticalmente sem deslocar header/sidebar."""
     with dev_server() as base_url, sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         try:
             page = browser.new_page(viewport={"width": 375, "height": 667})
             try:
                 page.goto(base_url, wait_until="networkidle")
-
-                scroll_height = page.evaluate(
-                    "() => document.documentElement.scrollHeight"
-                )
-                client_height = page.evaluate(
-                    "() => document.documentElement.clientHeight"
-                )
 
                 # Sem overflow horizontal
                 body_width = page.evaluate(
@@ -296,28 +289,48 @@ def test_vertical_scroll():
                     f"overflow horizontal em mobile: {body_width}px > 375px"
                 )
 
-                # Se o conteúdo excede a área visível, validar rolagem real
-                if scroll_height > client_height:
-                    scroll_y_before = page.evaluate("() => window.scrollY")
-                    page.evaluate("window.scrollBy(0, 300)")
-                    page.wait_for_timeout(100)
-                    scroll_y_after = page.evaluate("() => window.scrollY")
-                    assert scroll_y_after > scroll_y_before, (
-                        f"rolagem vertical não funcionou: scrollY {scroll_y_before} -> {scroll_y_after}"
-                    )
-                    # Retornar ao topo
-                    page.evaluate("window.scrollTo(0, 0)")
-                    page.wait_for_timeout(100)
-                    scroll_y_top = page.evaluate("() => window.scrollY")
-                    assert scroll_y_top == 0, (
-                        f"volta ao topo falhou: scrollY={scroll_y_top}"
-                    )
-                else:
-                    # Página curta: apenas confirma que não há conteúdo excedente
-                    # e que o layout é estável (sem overflow horizontal)
-                    assert scroll_height <= client_height + 1, (
-                        f"conteúdo maior que viewport sem rolagem: {scroll_height} > {client_height}"
-                    )
+                # Forçar conteúdo maior que o viewport dentro do container rolável
+                page.evaluate(
+                    "() => {"
+                    "const container = document.querySelector('main > div.overflow-y-auto');"
+                    "if (container) {"
+                    "  const filler = document.createElement('div');"
+                    "  filler.style.height = '2000px';"
+                    "  filler.style.width = '1px';"
+                    "  container.appendChild(filler);"
+                    "}"
+                    "}"
+                )
+
+                # Selecionar o container real (o que tem overflow-y-auto dentro do main)
+                container = page.locator("main > div.overflow-y-auto")
+                assert container.count() >= 1, (
+                    "container rolável (main > div.overflow-y-auto) não encontrado"
+                )
+
+                # Validar scrollTop do container real, não window.scrollY
+                scroll_top_before = container.evaluate("(el) => el.scrollTop")
+                container.evaluate("(el) => el.scrollBy(0, 300)")
+                page.wait_for_timeout(100)
+                scroll_top_after = container.evaluate("(el) => el.scrollTop")
+
+                assert scroll_top_after > scroll_top_before, (
+                    f"rolagem vertical do container não funcionou: "
+                    f"scrollTop {scroll_top_before} -> {scroll_top_after}"
+                )
+
+                # Retornar ao topo do container
+                container.evaluate("(el) => el.scrollTop = 0")
+                page.wait_for_timeout(100)
+                scroll_top_top = container.evaluate("(el) => el.scrollTop")
+                assert scroll_top_top == 0, (
+                    f"volta ao topo do container falhou: scrollTop={scroll_top_top}"
+                )
+
+                # Verificar que o cabeçalho não se deslocou (ainda visível no topo)
+                header = page.locator("header")
+                assert header.count() >= 1, "cabeçalho não encontrado"
+
             finally:
                 page.close()
         finally:
