@@ -4,6 +4,7 @@ import * as React from "react"
 import { Sidebar, MobileBackdrop } from "@/components/nav/sidebar"
 import { Header } from "@/components/nav/header"
 import { cn } from "@/lib/utils"
+import { Suspense } from "react"
 
 export interface ShellLayoutProps {
   children: React.ReactNode
@@ -20,7 +21,9 @@ export function ShellLayout({ children, className }: ShellLayoutProps) {
   return (
     <div className={cn("relative h-screen bg-background", className)}>
       <MobileBackdrop open={mobileOpen} onToggle={onToggleMobile} />
-      <Sidebar open={mobileOpen} onToggle={onToggleMobile} />
+      <Suspense fallback={<div className="h-full lg:h-full" />}>
+        <Sidebar open={mobileOpen} onToggle={onToggleMobile} />
+      </Suspense>
 
       <main
         className={cn(
@@ -28,9 +31,13 @@ export function ShellLayout({ children, className }: ShellLayoutProps) {
           className,
         )}
       >
-        <Header mobileOpen={mobileOpen} onToggleMobile={onToggleMobile} />
+        <Suspense fallback={<div className="h-14" />}>
+          <Header mobileOpen={mobileOpen} onToggleMobile={onToggleMobile} />
+        </Suspense>
         <div className="flex-1 overflow-y-auto p-4 lg:p-8">
-          {children}
+          <Suspense fallback={<div className="h-full" />}>
+            {children}
+          </Suspense>
         </div>
       </main>
     </div>
