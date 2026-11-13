@@ -75,10 +75,10 @@ describe("reconciliarRegistros", () => {
     ]
     const resultado = reconciliarRegistros(registros)
 
-    // Apenas a versão mais recente (imp-002) deve aparecer para o item
-    expect(resultado.pedidosAgrupados[0].items).toHaveLength(1)
-    expect(resultado.pedidosAgrupados[0].items[0].quantidade).toBe(12)
-    expect(resultado.pedidosAgrupados[0].items[0].valor_total_calculado).toBe(300)
+    // Ambas as versoes sao preservadas (sem deduplicacao destrutiva)
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].items[0].quantidade).toBe(10)
+    expect(resultado.pedidosAgrupados[0].items[1].quantidade).toBe(12)
     // Mas ambas importacoes devem ser preservadas no historico
     expect(resultado.pedidosAgrupados[0].importacao_ids).toEqual(["imp-001", "imp-002"])
     expect(resultado.totalImportacoes).toBe(2)
@@ -123,8 +123,9 @@ describe("reconciliarRegistros", () => {
     ]
     const resultado = reconciliarRegistros(registros)
 
-    // A versão mais recente deve prevalecer
-    expect(resultado.pedidosAgrupados[0].valor_total).toBe(300)
+    // Ambas as versoes sao preservadas, total e a soma de ambas
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].valor_total).toBe(555)
     expect(resultado.pedidosAgrupados[0].importacao_ids).toEqual(["imp-001", "imp-002"])
   })
 
@@ -162,10 +163,10 @@ describe("reconciliarRegistros", () => {
 
     expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(true)
     expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).not.toBeNull()
-    // Deve usar a versão mais recente (imp-002), não somar ambas
-    expect(resultado.pedidosAgrupados[0].items).toHaveLength(1)
-    expect(resultado.pedidosAgrupados[0].items[0].quantidade).toBe(15)
-    expect(resultado.pedidosAgrupados[0].valor_total).toBe(382.5)
+    // Ambas as linhas sao preservadas (sem deduplicacao destrutiva)
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].quantidade_total).toBe(25)
+    expect(resultado.pedidosAgrupados[0].valor_total).toBe(637.5)
   })
 
   it("nao deve sinalizar ambiguidade quando mesmo produto tem mesma quantidade em importacoes distintas", () => {
@@ -213,10 +214,71 @@ describe("reconciliarRegistros", () => {
     ]
     const resultado = reconciliarRegistros(registros)
 
-    // linha_excel mudou (1 -> 7) mas quantidade é a mesma, nao e ambiguidade
+    // linha_excel mudou (1 -> 7) mas quantidade e a mesma, nao e ambiguidade
     expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
-    // Deve usar a versao mais recente
-    expect(resultado.pedidosAgrupados[0].items[0].linha_excel).toBe(7)
+    // Ambas as versoes sao preservadas (sem deduplicacao destrutiva)
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].items[0].linha_excel).toBe(1)
+    expect(resultado.pedidosAgrupados[0].items[1].linha_excel).toBe(7)
+  })
+
+  it("deve preservar produto repetido na mesma importacao sem descartar linhas", () => {
+    // Mesmo produto_codigo aparece duas vezes na mesma importacao para o mesmo pedido
+    // (duas linhas legítimas da planilha). Nao deve descartar nenhuma linha.
+    const registros = [
+      reg({
+        importacao_id: "imp-001",
+        importado_em: "2026-01-10T10:00:00Z",
+        linha_excel: 1,
+        produto_codigo: "P001",
+        quantidade: 10,
+        valor_total_calculado: 255,
+      }),
+      reg({
+        importacao_id: "imp-001",
+        importado_em: "2026-01-10T10:00:00Z",
+        linha_excel: 2,
+        produto_codigo: "P001",
+        quantidade: 8,
+        valor_total_calculado: 204,
+      }),
+    ]
+    const resultado = reconciliarRegistros(registros)
+
+    // Ambas as linhas devem ser preservadas (sem deduplicacao destrutiva)
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].quantidade_total).toBe(18)
+    expect(resultado.pedidosAgrupados[0].valor_total).toBe(459)
+    // Deve sinalizar inconsistencia porque ha ocorrencias multiplas na mesma importacao
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(true)
+    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).not.toBeNull()
+  })
+
+  it("nao deve sinalizar inconsistencia quando mesmo produto aparece uma vez por importacao com mesma quantidade", () => {
+    const registros = [
+      reg({
+        importacao_id: "imp-001",
+        importado_em: "2026-01-10T10:00:00Z",
+        linha_excel: 1,
+        produto_codigo: "P001",
+        quantidade: 10,
+        valor_total_calculado: 255,
+      }),
+      reg({
+        importacao_id: "imp-002",
+        importado_em: "2026-01-25T10:00:00Z",
+        linha_excel: 5,
+        produto_codigo: "P001",
+        quantidade: 10,
+        valor_total_calculado: 255,
+      }),
+    ]
+    const resultado = reconciliarRegistros(registros)
+
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
+    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).toBeNull()
+    expect(resultado.pedidosAgrupados[0].quantidade_total).toBe(20)
   })
 
   it("deve lidar com produto repetido em pedidos diferentes", () => {

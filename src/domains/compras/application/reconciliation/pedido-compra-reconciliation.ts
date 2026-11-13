@@ -3,14 +3,13 @@
  *
  * Regras:
  * - Preserva histórico: nunca remove importacao_ids antigas.
- * - Evita duplicidade: para cada (loja, pedido, produto_codigo), mantém apenas
- *   a versão mais recente (por importado_em).
+ * - NAO faz segunda deduplicacao destrutiva: a view v_rpa_pedidos_compra ja realiza
+ *   reconciliação na origem. Todas as linhas sao preservadas.
  * - linha_excel NAO é usada como identidade: pode mudar entre extrações.
  * - Não elimina pedidos antigos apenas por ausência na extração D-15.
  * - Não interpreta ausência em carga incremental como cancelamento.
- * - Quando o mesmo produto_codigo aparece em importações diferentes para o mesmo
- *   pedido com quantidades divergentes, sinaliza ambiguidade em vez de somar
- *   totais como se fossem itens distintos.
+ * - Quando o mesmo produto_codigo aparece múltiplas vezes para o mesmo (loja, pedido),
+ *   sinaliza inconsistência e não apresenta o total como definitivo.
  */
 
 import type {
@@ -55,55 +54,48 @@ export function reconciliarRegistros(
   const totalImportacoes = importacaoIds.length
   const totalRegistrosLidos = registros.length
 
-  // 2. Detectar ambiguidade: mesmo produto_codigo em importacoes diferentes
-  //    para o mesmo pedido com quantidades divergentes
-  const produtosPorPedido = new Map<string, Set<string>>() // chaveProdutoPedido -> importacao_ids
-  const quantidadesPorProdutoPedido = new Map<string, number[]>() // chaveProdutoPedido -> quantidades
+  // 2. Detectar inconsistencia: mesmo produto_codigo aparecendo múltiplas vezes
+  //    para o mesmo (loja, pedido) — pode ser linha legítima duplicada na origem
+  //    ou dados divergentes entre importacoes. Não descartar: sinalizar.
+  const ocorrenciasPorProdutoPedido = new Map<
+    string,
+    PedidoCompraOrigemRegistro[]
+  >()
 
   for (const reg of registros) {
     const chavePP = geraChaveProdutoPedido(reg.loja, reg.pedido, reg.produto_codigo)
-    let ids = produtosPorPedido.get(chavePP)
-    if (!ids) {
-      ids = new Set()
-      produtosPorPedido.set(chavePP, ids)
+    let ocorrencias = ocorrenciasPorProdutoPedido.get(chavePP)
+    if (!ocorrencias) {
+      ocorrencias = []
+      ocorrenciasPorProdutoPedido.set(chavePP, ocorrencias)
     }
-    ids.add(reg.importacao_id)
-
-    let qtds = quantidadesPorProdutoPedido.get(chavePP)
-    if (!qtds) {
-      qtds = []
-      quantidadesPorProdutoPedido.set(chavePP, qtds)
-    }
-    qtds.push(reg.quantidade)
+    ocorrencias.push(reg)
   }
 
-  const produtosAmbiguos = new Set<string>()
-  for (const [chavePP, ids] of produtosPorPedido) {
-    if (ids.size > 1) {
-      const qtds = quantidadesPorProdutoPedido.get(chavePP)!
-      const qtdsUnicos = new Set(qtds)
-      if (qtdsUnicos.size > 1) {
-        produtosAmbiguos.add(chavePP)
+  const produtosInconsistentes = new Set<string>()
+  for (const [chavePP, ocorrencias] of ocorrenciasPorProdutoPedido) {
+    if (ocorrencias.length > 1) {
+      // Mesmo produto_codigo em múltiplas linhas para o mesmo pedido
+      // Verificar se há divergência de quantidade entre elas
+      const quantidades = new Set(ocorrencias.map((o) => o.quantidade))
+      const importacoes = new Set(ocorrencias.map((o) => o.importacao_id))
+
+      // Inconsistente se: mesma importacao com linhas duplicadas, ou
+      // importacoes diferentes com quantidades divergentes
+      if (importacoes.size === 1 && ocorrencias.length > 1) {
+        // Mesmo produto repetido na mesma importacao — linha legítima ou duplicacao
+        produtosInconsistentes.add(chavePP)
+      } else if (importacoes.size > 1 && quantidades.size > 1) {
+        // Importacoes diferentes com quantidades divergentes
+        produtosInconsistentes.add(chavePP)
       }
     }
   }
 
-  // 3. Para cada (loja, pedido, produto_codigo), manter apenas a versão mais recente
-  //    (por importado_em), independentemente do linha_excel
-  const versaoMaisRecentePorProdutoPedido = new Map<string, PedidoCompraOrigemRegistro>()
-
-  for (const reg of registros) {
-    const chavePP = geraChaveProdutoPedido(reg.loja, reg.pedido, reg.produto_codigo)
-    const existente = versaoMaisRecentePorProdutoPedido.get(chavePP)
-    if (!existente || reg.importado_em > existente.importado_em) {
-      versaoMaisRecentePorProdutoPedido.set(chavePP, reg)
-    }
-  }
-
-  // 4. Agrupar por pedido (loja + pedido)
+  // 3. Agrupar TODAS as linhas por pedido (loja + pedido) — sem deduplicacao destrutiva
   const pedidosPorChave = new Map<string, PedidoCompraAgrupado>()
 
-  for (const reg of versaoMaisRecentePorProdutoPedido.values()) {
+  for (const reg of registros) {
     const chavePedido = geraChavePedido(reg.loja, reg.pedido)
 
     const item: PedidoCompraOrigemItem = {
@@ -118,17 +110,17 @@ export function reconciliarRegistros(
     }
 
     const chavePP = geraChaveProdutoPedido(reg.loja, reg.pedido, reg.produto_codigo)
-    const itemEhAmbiguo = produtosAmbiguos.has(chavePP)
+    const itemInconsistente = produtosInconsistentes.has(chavePP)
 
     const existente = pedidosPorChave.get(chavePedido)
     if (existente) {
       existente.items.push(item)
       existente.quantidade_total += reg.quantidade
       existente.valor_total += reg.valor_total_calculado
-      if (itemEhAmbiguo) {
+      if (itemInconsistente) {
         existente.tem_ambiguidade = true
         existente.mensagem_ambiguidade =
-          "Produto com quantidades divergentes entre importações. Totais podem não ser definitivos."
+          "Produto com ocorrências múltiplas entre linhas/importações. Totais não são definitivos."
       }
     } else {
       pedidosPorChave.set(chavePedido, {
@@ -143,15 +135,15 @@ export function reconciliarRegistros(
         valor_total: reg.valor_total_calculado,
         importacao_ids: [reg.importacao_id],
         importado_em_mais_recente: reg.importado_em,
-        tem_ambiguidade: itemEhAmbiguo,
-        mensagem_ambiguidade: itemEhAmbiguo
-          ? "Produto com quantidades divergentes entre importações. Totais podem não ser definitivos."
+        tem_ambiguidade: itemInconsistente,
+        mensagem_ambiguidade: itemInconsistente
+          ? "Produto com ocorrências múltiplas entre linhas/importações. Totais não são definitivos."
           : null,
       })
     }
   }
 
-  // 5. Enriquecer cada pedido com todos os importacao_ids que o referenciam
+  // 4. Enriquecer cada pedido com todos os importacao_ids que o referenciam
   const importacoesPorPedido = new Map<string, Set<string>>()
   for (const reg of registros) {
     const chavePedido = geraChavePedido(reg.loja, reg.pedido)

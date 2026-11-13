@@ -15,7 +15,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { PedidoCompraSupabaseRepository } from "@/domains/compras/infrastructure/repositories/pedido-compra.repository"
 import { ListarPedidosCompraUseCase } from "@/domains/compras/application/use-cases/listar-pedidos-compra.use-case"
@@ -52,9 +51,27 @@ export default async function ComprasPage({
     (typeof params.data_inicial === "string" ? params.data_inicial : "") || ""
   const dataFinal =
     (typeof params.data_final === "string" ? params.data_final : "") || ""
-  const pagina = params.pagina
-    ? Number(Array.isArray(params.pagina) ? params.pagina[0] : params.pagina)
-    : 1
+
+  const paginaBruta =
+    typeof params.pagina === "string"
+      ? params.pagina
+      : Array.isArray(params.pagina)
+        ? params.pagina[0]
+        : undefined
+  const paginaNumerico = paginaBruta ? Number(paginaBruta) : NaN
+  const temFiltros = Boolean(
+    loja || fornecedor || pedido || produto || dataInicial || dataFinal,
+  )
+  const paginaParamExplicito = paginaBruta !== undefined && paginaBruta !== ""
+
+  // Ao aplicar filtros, reinicia a paginação na página 1.
+  // Valida parâmetros inválidos: não-finite, negativo ou zero -> 1.
+  const pagina =
+    (temFiltros && !paginaParamExplicito) ||
+    !Number.isFinite(paginaNumerico) ||
+    paginaNumerico < 1
+      ? 1
+      : Math.floor(paginaNumerico)
 
   const repository = new PedidoCompraSupabaseRepository()
   const useCase = new ListarPedidosCompraUseCase(repository)
@@ -75,20 +92,7 @@ export default async function ComprasPage({
     resultado.pedidos.find((p) => p.mensagem_ambiguidade)?.mensagem_ambiguidade ??
     null
 
-  if (!resultado.origem_disponivel) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-center">
-        <AlertCircle className="h-10 w-10 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold text-foreground">
-          {resultado.mensagem_indisponibilidade ?? "Dados indisponíveis"}
-        </h3>
-        <p className="text-muted-foreground mt-2">
-          A leitura de pedidos de compra está indisponível no momento.
-          Verifique a configuração de ambiente e as permissões de acesso.
-        </p>
-      </div>
-    )
-  }
+  const integracaoIndisponivel = !resultado.origem_disponivel
 
   return (
     <div className="flex flex-col h-full">
@@ -104,6 +108,42 @@ export default async function ComprasPage({
           </div>
         </div>
       </header>
+
+      {integracaoIndisponivel && (
+        <Card className="border border-border p-4 mb-6 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-amber-900">
+              Integração indisponível
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-amber-800">
+              {resultado.mensagem_indisponibilidade ??
+                "A leitura de pedidos de compra está indisponível no momento."}
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              A estrutura do módulo está visível, mas os dados reais não foram
+              liberados. Nenhuma permissão de acesso a dados foi concedida.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {temAmbiguidade && !integracaoIndisponivel && (
+        <Card className="border border-border p-4 mb-6 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-yellow-900">
+              Atenção: dados ambíguos entre importações
+            </CardTitle>
+          </CardHeader>
+            <CardContent>
+            <p className="text-xs text-yellow-800">
+              {mensagemAmbiguidade ??
+                "Totais podem não ser definitivos devido a divergências entre importações."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border border-border p-4 mb-6">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -151,15 +191,6 @@ export default async function ComprasPage({
               <Label className="text-xs font-medium">Até</Label>
               <Input type="date" name="data_final" defaultValue={dataFinal} />
             </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs font-medium">Página</Label>
-              <Input
-                type="number"
-                name="pagina"
-                defaultValue={String(pagina)}
-                min="1"
-              />
-            </div>
           </form>
           <div className="flex justify-end mt-4">
             <Button variant="outline" size="sm" type="submit" form="filtros-compras">
@@ -171,22 +202,6 @@ export default async function ComprasPage({
           </div>
         </CardContent>
       </Card>
-
-      {temAmbiguidade && (
-        <Card className="border border-border p-4 mb-6 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-yellow-900">
-              Atenção: dados ambíguos entre importações
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-yellow-800">
-              {mensagemAmbiguidade ??
-                "Totais podem não ser definitivos devido a divergências entre importações."}
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       <main className="flex-1 overflow-y-auto p-4">
         <div className="rounded-md border border-border">
@@ -204,97 +219,102 @@ export default async function ComprasPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {resultado.pedidos.length === 0 && (
+                {integracaoIndisponivel || resultado.pedidos.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={7}
                       className="h-24 text-center text-muted-foreground"
                     >
-                      Nenhum pedido encontrado com os filtros aplicados.
+                      {integracaoIndisponivel
+                        ? "Dados indisponíveis: integração com fonte de pedidos não liberada."
+                        : "Nenhum pedido encontrado com os filtros aplicados."}
                     </TableCell>
                   </TableRow>
+                ) : (
+                  resultado.pedidos.map((pedido) => (
+                    <TableRow
+                      key={`${pedido.loja}||${pedido.pedido}`}
+                      className="hover:bg-accent transition-colors"
+                    >
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/compras/${pedido.pedido}?loja=${encodeURIComponent(pedido.loja)}`}
+                        >
+                          {pedido.pedido}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{pedido.loja}</TableCell>
+                      <TableCell>{pedido.fornecedor_nome}</TableCell>
+                      <TableCell className="text-right">
+                        {valorFormatado(pedido.valor_total)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {pedido.quantidade_total}
+                      </TableCell>
+                      <TableCell>{dataFormatada(pedido.data_pedido)}</TableCell>
+                      <TableCell className="text-right">
+                        <ChevronRightIcon />
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
-                {resultado.pedidos.map((pedido) => (
-                  <TableRow
-                    key={`${pedido.loja}||${pedido.pedido}`}
-                    className="hover:bg-accent transition-colors"
-                  >
-                    <TableCell className="font-medium">
-                      <Link
-                        href={`/compras/${pedido.pedido}?loja=${encodeURIComponent(pedido.loja)}`}
-                      >
-                        {pedido.pedido}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{pedido.loja}</TableCell>
-                    <TableCell>{pedido.fornecedor_nome}</TableCell>
-                    <TableCell className="text-right">
-                      {valorFormatado(pedido.valor_total)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {pedido.quantidade_total}
-                    </TableCell>
-                    <TableCell>{dataFormatada(pedido.data_pedido)}</TableCell>
-                    <TableCell className="text-right">
-                      <ChevronRightIcon />
-                    </TableCell>
-                  </TableRow>
-                ))}
               </TableBody>
             </Table>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>
-              Página {resultado.pagina} de {resultado.total_paginas}
-              &nbsp;({resultado.total} pedido(s))
-            </span>
-            {resultado.total_registros_origem > 0 && (
-              <span className="text-xs">
-                ({resultado.total_registros_origem} registro(s) de origem /
-                {resultado.total_importacoes} importação(ões))
+        {!integracaoIndisponivel && (
+          <div className="mt-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                Página {resultado.pagina} de {resultado.total_paginas}
+                &nbsp;({resultado.total} pedido(s))
               </span>
-            )}
+              {resultado.total_registros_origem > 0 && (
+                <span className="text-xs">
+                  ({resultado.total_registros_origem} registro(s) de origem /
+                  {resultado.total_importacoes} importação(ões))
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {resultado.pagina > 1 && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link
+                    href={construirURLFiltros({
+                      loja,
+                      fornecedor,
+                      pedido,
+                      produto,
+                      data_inicial: dataInicial,
+                      data_final: dataFinal,
+                      pagina: String(resultado.pagina - 1),
+                    })}
+                  >
+                    Anterior
+                  </Link>
+                </Button>
+              )}
+              {resultado.pagina < resultado.total_paginas && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link
+                    href={construirURLFiltros({
+                      loja,
+                      fornecedor,
+                      pedido,
+                      produto,
+                      data_inicial: dataInicial,
+                      data_final: dataFinal,
+                      pagina: String(resultado.pagina + 1),
+                    })}
+                  >
+                    Próxima
+                  </Link>
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {resultado.pagina > 1 && (
-              <Button variant="outline" size="sm" asChild>
-                <Link
-                  href={construirURLFiltros({
-                    loja,
-                    fornecedor,
-                    pedido,
-                    produto,
-                    data_inicial: dataInicial,
-                    data_final: dataFinal,
-                    pagina: String(resultado.pagina - 1),
-                  })}
-                >
-                  Anterior
-                </Link>
-              </Button>
-            )}
-            {resultado.pagina < resultado.total_paginas && (
-              <Button variant="outline" size="sm" asChild>
-                <Link
-                  href={construirURLFiltros({
-                    loja,
-                    fornecedor,
-                    pedido,
-                    produto,
-                    data_inicial: dataInicial,
-                    data_final: dataFinal,
-                    pagina: String(resultado.pagina + 1),
-                  })}
-                >
-                  Próxima
-                </Link>
-              </Button>
-            )}
-          </div>
-        </div>
+        )}
       </main>
     </div>
   )
