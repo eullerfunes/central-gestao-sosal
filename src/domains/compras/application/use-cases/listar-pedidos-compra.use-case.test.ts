@@ -4,8 +4,7 @@ import type { PedidoCompraRepositoryPort } from "../ports/pedido-compra.reposito
 
 const mockRepository = {
   listar: vi.fn(),
-  buscarPorNumero: vi.fn(),
-  buscarPorId: vi.fn(),
+  buscarPorLoEPedido: vi.fn(),
 }
 
 describe("ListarPedidosCompraUseCase", () => {
@@ -17,42 +16,41 @@ describe("ListarPedidosCompraUseCase", () => {
     mockRepository.listar.mockResolvedValue({
       pedidos: [
         {
-          id: "1",
-          numeroPedido: "PED-001",
           loja: "Loja 01",
-          codigoFornecedor: "F001",
-          nomeFornecedor: "Fornecedor A",
-          dataPedido: new Date("2026-01-10"),
-          condicaoPagamento: "30/60/90",
-          status: "enviado",
-          decisaoCompra: "aprovado",
-          valorTotalPedido: { toUnits: () => 100 },
-          quantidadeTotalSolicitada: 10,
-          quantidadeTotalRecebida: 5,
-          quantidadeTotalPendente: 5,
-          valorTotalPendente: { toUnits: () => 50 },
-          situacaoEntregaAgregada: "chegada-parcial",
-          origem: null,
-          previsaoChegada: null,
-          items: [],
+          pedido: "PED-001",
+          fornecedor_codigo: "F001",
+          fornecedor_nome: "Fornecedor A",
+          data_pedido: "2026-01-10",
+          condicao_pagamento: "30/60/90",
+          quantidade_total: 10,
+          valor_total: 100,
+          importacao_ids: ["imp-001"],
+          importado_em_mais_recente: "2026-01-10T10:00:00Z",
         },
       ],
       total: 1,
       pagina: 1,
-      tamanhoPagina: 20,
-      totalPaginas: 1,
+      tamanho_pagina: 20,
+      total_paginas: 1,
+      origem_disponivel: true,
+      mensagem_indisponibilidade: null,
     })
 
     const resultado = await useCase.executar({
       pagina: 1,
-      tamanhoPagina: 20,
+      tamanho_pagina: 20,
     })
 
     expect(resultado.total).toBe(1)
     expect(resultado.pagina).toBe(1)
     expect(resultado.pedidos.length).toBe(1)
-    expect(resultado.pedidos[0].numeroPedido).toBe("PED-001")
-    expect(resultado.temDados).toBe(true)
+    expect(resultado.pedidos[0].pedido).toBe("PED-001")
+    expect(resultado.pedidos[0].loja).toBe("Loja 01")
+    expect(resultado.tem_dados).toBe(true)
+    expect(resultado.origem_disponivel).toBe(true)
+    expect(resultado.pedidos[0].quantidade_total_recebida).toBeNull()
+    expect(resultado.pedidos[0].valor_total_pendente).toBeNull()
+    expect(resultado.pedidos[0].status).toBeNull()
   })
 
   it("should return empty result when repository returns no pedidos", async () => {
@@ -64,15 +62,20 @@ describe("ListarPedidosCompraUseCase", () => {
       pedidos: [],
       total: 0,
       pagina: 1,
-      tamanhoPagina: 20,
-      totalPaginas: 0,
+      tamanho_pagina: 20,
+      total_paginas: 0,
+      origem_disponivel: false,
+      mensagem_indisponibilidade:
+        "Não foi possível acessar a view de pedidos de compra.",
     })
 
     const resultado = await useCase.executar({})
 
-    expect(resultado.temDados).toBe(false)
+    expect(resultado.tem_dados).toBe(false)
     expect(resultado.pedidos).toEqual([])
     expect(resultado.total).toBe(0)
+    expect(resultado.origem_disponivel).toBe(false)
+    expect(resultado.mensagem_indisponibilidade).not.toBeNull()
   })
 
   it("should apply filtros when calling repository", async () => {
@@ -84,29 +87,33 @@ describe("ListarPedidosCompraUseCase", () => {
       pedidos: [],
       total: 0,
       pagina: 1,
-      tamanhoPagina: 20,
-      totalPaginas: 0,
+      tamanho_pagina: 20,
+      total_paginas: 0,
+      origem_disponivel: true,
+      mensagem_indisponibilidade: null,
     })
 
     await useCase.executar({
       loja: "Loja 01",
       fornecedor: "F001",
-      numeroPedido: "PED-001",
+      pedido: "PED-001",
       produto: "P001",
-      dataInicial: "2026-01-01",
-      dataFinal: "2026-01-31",
+      data_inicial: "2026-01-01",
+      data_final: "2026-01-31",
       pagina: 2,
-      tamanhoPagina: 10,
+      tamanho_pagina: 10,
     })
 
     expect(mockRepository.listar).toHaveBeenCalledWith(
       expect.objectContaining({
         loja: "Loja 01",
         fornecedor: "F001",
-        numeroPedido: "PED-001",
+        pedido: "PED-001",
         produto: "P001",
+        data_inicial: "2026-01-01",
+        data_final: "2026-01-31",
         pagina: 2,
-        tamanhoPagina: 10,
+        tamanho_pagina: 10,
       }),
     )
   })

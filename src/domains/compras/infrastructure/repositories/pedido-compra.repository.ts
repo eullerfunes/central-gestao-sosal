@@ -6,110 +6,175 @@
  * - Nenhuma migration.
  * - Nenhuma alteração de schema, tabela ou view.
  * - Nenhuma escrita em pedidos ou aprovações.
- * - View candidata: "Só Sal".v_rpa_pedidos_compra (não confirmada como existente).
+ * - Leitura apenas no servidor (createSupabaseServerClient).
+ * - Nenhuma service_role key no navegador.
+ * - View candidata: "Só Sal".v_rpa_pedidos_compra.
+ *
+ * Segurança:
+ * - Verifica sessão de autenticação antes de consultar.
+ * - Se não houver sessão, retorna estado de acesso negado.
+ * - Se a view não existir ou não houver permissão de SELECT,
+ *   retorna estado de indisponibilidade (não lista vazia legítima).
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type {
   PedidoCompraRepositoryPort,
   ListarPedidosFiltros,
   ListarPedidosResultado,
 } from "../../application/ports/pedido-compra.repository.port"
-import { PedidoCompra } from "../../domain/entities/pedido-compra"
-import { ItemPedido } from "../../domain/entities/item-pedido"
+import {
+  reconciliarRegistros,
+  type PedidoCompraAgrupado,
+} from "../../application/reconciliation/pedido-compra-reconciliation"
+import type { PedidoCompraOrigemRegistro } from "../../domain/entities/pedido-compra-origem"
 
-/**
- * Nota: o cliente Supabase só é instanciado quando as variáveis de ambiente
- * estiverem definidas. Caso contrário, o repositório retorna dados vazios
- * com origem "Não disponível".
- */
+const VIEW_NAME = '"Só Sal".v_rpa_pedidos_compra'
+
+type LeituraResultado =
+  | { tipo: "sucesso"; registros: Record<string, unknown>[] }
+  | { tipo: "indisponivel"; mensagem: string }
+  | { tipo: "acesso_negado" }
+
 export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPort {
-  constructor(
-    private readonly supabaseClient: SupabaseClient,
-  ) {}
+  async listar(
+    filtros: ListarPedidosFiltros,
+  ): Promise<ListarPedidosResultado> {
+    const leitura = await this.lerRegistros()
 
-  async listar(filtros: ListarPedidosFiltros): Promise<ListarPedidosResultado> {
-    if (!this.supabaseClient) {
-      return this.resultadoVazio(filtros.pagina ?? 1, filtros.tamanhoPagina ?? 20)
+    if (leitura.tipo === "acesso_negado") {
+      return this.resultadoAcessoNegado(
+        filtros.pagina ?? 1,
+        filtros.tamanho_pagina ?? 20,
+      )
+    }
+
+    if (leitura.tipo === "indisponivel") {
+      return this.resultadoIndisponivel(
+        filtros.pagina ?? 1,
+        filtros.tamanho_pagina ?? 20,
+        leitura.mensagem,
+      )
+    }
+
+    const { registros } = leitura
+    const { pedidosAgrupados } = reconciliarRegistros(
+      registros as unknown as PedidoCompraOrigemRegistro[],
+    )
+
+    let filtrados: PedidoCompraAgrupado[] = pedidosAgrupados
+
+    if (filtros.loja) {
+      filtrados = filtrados.filter((p: PedidoCompraAgrupado) =>
+        p.loja.toLowerCase().includes(filtros.loja!.toLowerCase()),
+      )
+    }
+    if (filtros.fornecedor) {
+      filtrados = filtrados.filter((p: PedidoCompraAgrupado) =>
+        p.fornecedor_nome.toLowerCase().includes(filtros.fornecedor!.toLowerCase()),
+      )
+    }
+    if (filtros.pedido) {
+      filtrados = filtrados.filter((p: PedidoCompraAgrupado) =>
+        p.pedido.toLowerCase().includes(filtros.pedido!.toLowerCase()),
+      )
+    }
+    if (filtros.produto) {
+      filtrados = filtrados.filter((p: PedidoCompraAgrupado) =>
+        p.items.some((i: { produto_codigo: string }) =>
+          i.produto_codigo.toLowerCase().includes(filtros.produto!.toLowerCase()),
+        ),
+      )
+    }
+    if (filtros.data_inicial) {
+      filtrados = filtrados.filter((p: PedidoCompraAgrupado) =>
+        p.data_pedido >= filtros.data_inicial!,
+      )
+    }
+    if (filtros.data_final) {
+      filtrados = filtrados.filter((p: PedidoCompraAgrupado) =>
+        p.data_pedido <= filtros.data_final!,
+      )
+    }
+
+    const pagina = filtros.pagina ?? 1
+    const tamanhoPagina = filtros.tamanho_pagina ?? 20
+    const inicio = (pagina - 1) * tamanhoPagina
+    const fim = inicio + tamanhoPagina
+    const paginaPedidos = filtrados.slice(inicio, fim)
+
+    return {
+      pedidos: paginaPedidos,
+      total: filtrados.length,
+      pagina,
+      tamanho_pagina: tamanhoPagina,
+      total_paginas: Math.ceil(filtrados.length / tamanhoPagina),
+      origem_disponivel: true,
+      mensagem_indisponibilidade: null,
+    }
+  }
+
+  async buscarPorLoEPedido(
+    loja: string,
+    pedido: string,
+  ): Promise<PedidoCompraAgrupado | null> {
+    const leitura = await this.lerRegistros()
+
+    if (leitura.tipo !== "sucesso") {
+      return null
+    }
+
+    const { pedidosAgrupados } = reconciliarRegistros(
+      leitura.registros as unknown as PedidoCompraOrigemRegistro[],
+    )
+    return pedidosAgrupados.find(
+      (p: PedidoCompraAgrupado) => p.loja === loja && p.pedido === pedido,
+    ) ?? null
+  }
+
+  private async lerRegistros(): Promise<LeituraResultado> {
+    const supabase = await createSupabaseServerClient()
+
+    if (!supabase) {
+      return {
+        tipo: "indisponivel",
+        mensagem:
+          "Variáveis de ambiente do Supabase não configuradas. Dados indisponíveis.",
+      }
+    }
+
+    // Verificar sessão de autenticação antes de consultar dados.
+    // Sem sessão autenticada, retorna acesso negado (não lista vazia legítima).
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !authData?.user) {
+      return {
+        tipo: "acesso_negado",
+      }
     }
 
     try {
-      // View candidata: não confirmada como existente no Supabase.
-      // A consulta abaixo é um contrato de leitura; falha graciosamente se a view não existir.
-      const { data, error, count } = await this.supabaseClient
-        .from('"Só Sal".v_rpa_pedidos_compra')
-        .select("*", { count: "exact" })
-        .ilike("numero_pedido", `%${filtros.numeroPedido ?? ""}%`)
-        .range(
-          ((filtros.pagina ?? 1) - 1) * (filtros.tamanhoPagina ?? 20),
-          (filtros.pagina ?? 1) * (filtros.tamanhoPagina ?? 20) - 1,
-        )
+      const { data, error } = await supabase
+        .from(VIEW_NAME)
+        .select("*")
 
       if (error) {
-        // View não existe ou sem permissão: retorna vazio sem expor erro ao cliente
-        return this.resultadoVazio(filtros.pagina ?? 1, filtros.tamanhoPagina ?? 20)
+        return {
+          tipo: "indisponivel",
+          mensagem: `Não foi possível acessar a view de pedidos de compra: ${error.message}`,
+        }
       }
 
-      const pedidos = (data ?? []).map((row: Record<string, unknown>) => this.mapearParaPedido(row))
-
+      return { tipo: "sucesso", registros: (data ?? []) as Record<string, unknown>[] }
+    } catch {
       return {
-        pedidos,
-        total: count ?? 0,
-        pagina: filtros.pagina ?? 1,
-        tamanhoPagina: filtros.tamanhoPagina ?? 20,
-        totalPaginas: Math.ceil((count ?? 0) / (filtros.tamanhoPagina ?? 20)),
+        tipo: "indisponivel",
+        mensagem: "Não foi possível conectar à fonte de dados de pedidos.",
       }
-    } catch {
-      // Qualquer falha de conexão ou schema: retorna vazio sem expor detalhes internos
-      return this.resultadoVazio(filtros.pagina ?? 1, filtros.tamanhoPagina ?? 20)
     }
   }
 
-  async buscarPorNumero(numeroPedido: string): Promise<PedidoCompra | null> {
-    if (!this.supabaseClient) {
-      return null
-    }
-
-    try {
-      const { data, error } = await this.supabaseClient
-        .from('"Só Sal".v_rpa_pedidos_compra')
-        .select("*")
-        .eq("numero_pedido", numeroPedido)
-        .single()
-
-      if (error || !data) {
-        return null
-      }
-
-      return this.mapearParaPedido(data as Record<string, unknown>)
-    } catch {
-      return null
-    }
-  }
-
-  async buscarPorId(id: string): Promise<PedidoCompra | null> {
-    if (!this.supabaseClient) {
-      return null
-    }
-
-    try {
-      const { data, error } = await this.supabaseClient
-        .from('"Só Sal".v_rpa_pedidos_compra')
-        .select("*")
-        .eq("id", id)
-        .single()
-
-      if (error || !data) {
-        return null
-      }
-
-      return this.mapearParaPedido(data as Record<string, unknown>)
-    } catch {
-      return null
-    }
-  }
-
-  private resultadoVazio(
+  private resultadoAcessoNegado(
     pagina: number,
     tamanhoPagina: number,
   ): ListarPedidosResultado {
@@ -117,60 +182,27 @@ export class PedidoCompraSupabaseRepository implements PedidoCompraRepositoryPor
       pedidos: [],
       total: 0,
       pagina,
-      tamanhoPagina,
-      totalPaginas: 0,
+      tamanho_pagina: tamanhoPagina,
+      total_paginas: 0,
+      origem_disponivel: false,
+      mensagem_indisponibilidade:
+        "Acesso negado: sessão de autenticação não encontrada.",
     }
   }
 
-  private mapearParaPedido(row: Record<string, unknown>): PedidoCompra {
-    const items: ItemPedido[] = []
-
-    // Mapeamento provisório — colunas da view não confirmadas.
-    // A view de pedidos não contém todos os controles da planilha (aprovação, recebimentos, OTB completo).
-    const rowItens = row.itens
-    if (rowItens && Array.isArray(rowItens)) {
-      rowItens.forEach((item: Record<string, unknown>) => {
-        items.push(
-          new ItemPedido({
-            codigoProduto: String(item.codigo_produto ?? ""),
-            descricaoProduto: String(item.descricao_produto ?? ""),
-            quantidadeSolicitada: Number(item.quantidade_solicitada) || 0,
-            custoUnitario: Number(item.custo_unitario) || 0,
-            quantidadeRecebida: Number(item.quantidade_recebida) || 0,
-            situacaoEntrega:
-              item.situacao_entrega === "ja-chegou"
-                ? "ja-chegou"
-                : item.situacao_entrega === "chegada-parcial"
-                  ? "chegada-parcial"
-                  : "em-aberto",
-          }),
-        )
-      })
+  private resultadoIndisponivel(
+    pagina: number,
+    tamanhoPagina: number,
+    mensagem: string,
+  ): ListarPedidosResultado {
+    return {
+      pedidos: [],
+      total: 0,
+      pagina,
+      tamanho_pagina: tamanhoPagina,
+      total_paginas: 0,
+      origem_disponivel: false,
+      mensagem_indisponibilidade: mensagem,
     }
-
-    return new PedidoCompra({
-      id: String(row.id ?? ""),
-      loja: String(row.loja ?? ""),
-      codigoFornecedor: String(row.codigo_fornecedor ?? ""),
-      nomeFornecedor: String(row.nome_fornecedor ?? ""),
-      numeroPedido: String(row.numero_pedido ?? ""),
-      dataPedido: row.data_pedido ? new Date(String(row.data_pedido)) : new Date(),
-      condicaoPagamento: row.condicao_pagamento ? String(row.condicao_pagamento) : null,
-      items,
-      status: "enviado",
-      decisaoCompra: null,
-      travaCaixa: false,
-      motivoDecisao: null,
-      observacoes: null,
-      situacaoOTB: null,
-      situacaoFinanceira: null,
-      curvaABC: null,
-      alertas: [],
-      previsaoChegada: row.previsao_chegada ? new Date(String(row.previsao_chegada)) : null,
-      origem: row.origem ? String(row.origem) : null,
-      dataAtualizacao: row.data_atualizacao ? new Date(String(row.data_atualizacao)) : null,
-      usuarioAtualizacao: row.usuario_atualizacao ? String(row.usuario_atualizacao) : null,
-      quantidadeParcelas: 0,
-    })
   }
 }

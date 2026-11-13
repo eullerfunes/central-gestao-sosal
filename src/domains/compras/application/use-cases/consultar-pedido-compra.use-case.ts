@@ -1,6 +1,10 @@
 /**
- * Use case: Consultar detalhes de um pedido de compra por número.
- * Apenas leitura (Supabase read-only).
+ * Use case: Consultar detalhes de um pedido de compra por loja + número.
+ * Apenas leitura (Supabase read-only via repository port).
+ * Fluxo: Página → Use Case → Repository Port → Adaptador Supabase → DTO tipado.
+ *
+ * Nao permite visualizar itens de outra filial por correspondencia parcial.
+ * A identidade eh loja + pedido (ambos obrigatórios).
  */
 
 import type { PedidoCompraRepositoryPort } from "../ports/pedido-compra.repository.port"
@@ -9,57 +13,63 @@ import type { PedidoCompraDetalheDTO } from "../dto/pedido-compra.dto"
 export class ConsultarPedidoCompraUseCase {
   constructor(private readonly repository: PedidoCompraRepositoryPort) {}
 
-  async executar(numeroPedido: string): Promise<PedidoCompraDetalheDTO | null> {
-    const pedido = await this.repository.buscarPorNumero(numeroPedido)
-
-    if (!pedido) {
+  async executar(
+    loja: string,
+    pedido: string,
+  ): Promise<PedidoCompraDetalheDTO | null> {
+    if (!loja.trim() || !pedido.trim()) {
       return null
     }
 
-    const itemsDTO = pedido.items.map((item) => ({
-      codigoProduto: item.codigoProduto,
-      descricaoProduto: item.descricaoProduto,
-      quantidadeSolicitada: item.quantidadeSolicitada,
-      custoUnitario: item.custoUnitario,
-      quantidadeRecebida: item.quantidadeRecebida,
-      quantidadePendente: item.quantidadePendente,
-      valorTotal: item.valorTotal.toUnits(),
-      valorPendente: item.valorPendente.toUnits(),
-      situacaoEntrega: item.situacaoEntrega,
-      estaTotalmenteRecebido: item.estaTotalmenteRecebido,
-      estaParcialmenteRecebido: item.estaParcialmenteRecebido,
-      naoRecebido: item.naoRecebido,
+    const pedidoAgrupado = await this.repository.buscarPorLoEPedido(loja, pedido)
+
+    if (!pedidoAgrupado) {
+      return null
+    }
+
+    const itemsDTO = pedidoAgrupado.items.map((item) => ({
+      linha_excel: item.linha_excel,
+      produto_codigo: item.produto_codigo,
+      descricao: item.descricao,
+      quantidade: item.quantidade,
+      custo_unitario: item.custo_unitario,
+      valor_total_calculado: item.valor_total_calculado,
+      importacao_id: item.importacao_id,
+      importado_em: item.importado_em,
+      quantidade_recebida: null,
+      quantidade_pendente: null,
+      valor_pendente: null,
+      situacao_entrega: null,
     }))
 
     return {
-      id: pedido.id,
-      numeroPedido: pedido.numeroPedido,
-      loja: pedido.loja,
-      codigoFornecedor: pedido.codigoFornecedor,
-      nomeFornecedor: pedido.nomeFornecedor,
-      dataPedido: pedido.dataPedido.toISOString(),
-      condicaoPagamento: pedido.condicaoPagamento,
-      status: pedido.status,
-      decisaoCompra: pedido.decisaoCompra ?? null,
-      valorTotal: pedido.valorTotalPedido.toUnits(),
-      quantidadeTotalSolicitada: pedido.quantidadeTotalSolicitada,
-      quantidadeTotalRecebida: pedido.quantidadeTotalRecebida,
-      quantidadeTotalPendente: pedido.quantidadeTotalPendente,
-      valorTotalPendente: pedido.valorTotalPendente.toUnits(),
-      situacaoEntrega: pedido.situacaoEntregaAgregada,
-      origem: pedido.origem,
-      previsaoChegada: pedido.previsaoChegada?.toISOString() ?? null,
+      loja: pedidoAgrupado.loja,
+      pedido: pedidoAgrupado.pedido,
+      fornecedor_codigo: pedidoAgrupado.fornecedor_codigo,
+      fornecedor_nome: pedidoAgrupado.fornecedor_nome,
+      data_pedido: pedidoAgrupado.data_pedido || null,
+      condicao_pagamento: pedidoAgrupado.condicao_pagamento,
+      quantidade_total: pedidoAgrupado.quantidade_total,
+      valor_total: pedidoAgrupado.valor_total,
+      importacao_ids: pedidoAgrupado.importacao_ids,
+      importado_em_mais_recente: pedidoAgrupado.importado_em_mais_recente || null,
+      quantidade_total_recebida: null,
+      quantidade_total_pendente: null,
+      valor_total_pendente: null,
+      situacao_entrega: null,
+      status: null,
       items: itemsDTO,
-      travaCaixa: pedido.travaCaixa,
-      motivoDecisao: pedido.motivoDecisao,
-      observacoes: pedido.observacoes,
-      situacaoOTB: pedido.situacaoOTB,
-      situacaoFinanceira: pedido.situacaoFinanceira,
-      curvaABC: pedido.curvaABC,
-      alertas: pedido.alertas,
-      parcelasPrevistas: pedido.parcelasPrevistas,
-      usuarioAtualizacao: pedido.usuarioAtualizacao,
-      dataAtualizacao: pedido.dataAtualizacao?.toISOString() ?? null,
+      decisao_compra: null,
+      trava_caixa: null,
+      motivo_decisao: null,
+      observacoes: null,
+      situacao_otb: null,
+      situacao_financeira: null,
+      curva_abc: null,
+      alertas: [],
+      parcelas_previstas: null,
+      usuario_atualizacao: null,
+      data_atualizacao: null,
     }
   }
 }

@@ -1,42 +1,44 @@
 /**
  * Porta de saída definida pelo domínio para repositório de pedidos de compra.
  * Apenas operações de leitura (Supabase read-only nesta etapa).
+ *
+ * Identidade do pedido: loja + pedido (coluna "pedido" da view v_rpa_pedidos_compra).
+ * Nunca usar .single() em view de itens — cada linha da view é um item.
  */
 
-import type { PedidoCompra } from "../../domain/entities/pedido-compra"
+import type { PedidoCompraAgrupado } from "../../domain/entities/pedido-compra-origem"
 
 export interface PedidoCompraRepositoryPort {
   /**
-   * Lista pedidos com paginação no servidor e filtros.
+   * Lista pedidos agrupados com paginação e filtros.
+   * Conta pedidos, não linhas de itens.
    */
   listar(filtros: ListarPedidosFiltros): Promise<ListarPedidosResultado>
 
   /**
-   * Busca um pedido pelo número, incluindo itens.
+   * Busca um pedido por loja + numero do pedido, incluindo todos os itens.
+   * Nao permite visualizar itens de outra filial por correspondencia ambigua.
    */
-  buscarPorNumero(numeroPedido: string): Promise<PedidoCompra | null>
-
-  /**
-   * Busca um pedido pelo ID interno.
-   */
-  buscarPorId(id: string): Promise<PedidoCompra | null>
+  buscarPorLoEPedido(loja: string, pedido: string): Promise<PedidoCompraAgrupado | null>
 }
 
 export interface ListarPedidosFiltros {
   loja?: string
   fornecedor?: string
-  numeroPedido?: string
+  pedido?: string
   produto?: string
-  dataInicial?: Date
-  dataFinal?: Date
+  data_inicial?: string
+  data_final?: string
   pagina?: number
-  tamanhoPagina?: number
+  tamanho_pagina?: number
 }
 
 export interface ListarPedidosResultado {
-  pedidos: PedidoCompra[]
+  pedidos: PedidoCompraAgrupado[]
   total: number
   pagina: number
-  tamanhoPagina: number
-  totalPaginas: number
+  tamanho_pagina: number
+  total_paginas: number
+  origem_disponivel: boolean
+  mensagem_indisponibilidade: string | null
 }

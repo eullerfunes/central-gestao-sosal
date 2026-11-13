@@ -18,12 +18,31 @@ export type {
   PedidoCompraResumoDTO,
   PedidoCompraDetalheDTO,
   ItemPedidoDTO,
-  ParcelaPrevistaDTO,
   ListarPedidosRequest,
   ListarPedidosResponse,
 } from "./application/dto/pedido-compra.dto"
 
 export { createComprasSupabaseClient } from "./infrastructure/supabase/client"
+
+export type {
+  PedidoCompraOrigemRegistro,
+  PedidoCompraOrigemItem,
+  PedidoCompraAgrupado,
+} from "./domain/entities/pedido-compra-origem"
+
+export {
+  adaptarRegistrosDeOrigem,
+  extrairRegistroDeOrigem,
+  geraChavePedido as geraChavePedidoOrigem,
+} from "./application/adapters/pedido-compra-origem.adapter"
+
+export {
+  reconciliarRegistros,
+  filtrarPorPedido,
+  geraChaveItem,
+  geraChavePedido,
+  type ItemVersaoMaisRecente,
+} from "./application/reconciliation/pedido-compra-reconciliation"
 
 export {
   PedidoCompra,

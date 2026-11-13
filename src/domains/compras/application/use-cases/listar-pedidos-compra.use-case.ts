@@ -1,6 +1,7 @@
 /**
  * Use case: Listar pedidos de compra com paginação e filtros.
- * Apenas leitura (Supabase read-only).
+ * Apenas leitura (Supabase read-only via repository port).
+ * Fluxo: Página → Use Case → Repository Port → Adaptador Supabase → DTO tipado.
  */
 
 import type { PedidoCompraRepositoryPort } from "../ports/pedido-compra.repository.port"
@@ -13,51 +14,54 @@ import type {
 export class ListarPedidosCompraUseCase {
   constructor(private readonly repository: PedidoCompraRepositoryPort) {}
 
-  async executar(request: ListarPedidosRequest): Promise<ListarPedidosResponse> {
+  async executar(
+    request: ListarPedidosRequest,
+  ): Promise<ListarPedidosResponse> {
     const pagina = request.pagina ?? 1
-    const tamanhoPagina = request.tamanhoPagina ?? 20
+    const tamanhoPagina = request.tamanho_pagina ?? 20
 
     const filtros = {
       loja: request.loja,
       fornecedor: request.fornecedor,
-      numeroPedido: request.numeroPedido,
+      pedido: request.pedido,
       produto: request.produto,
-      dataInicial: request.dataInicial ? new Date(request.dataInicial) : undefined,
-      dataFinal: request.dataFinal ? new Date(request.dataFinal) : undefined,
+      data_inicial: request.data_inicial,
+      data_final: request.data_final,
       pagina,
-      tamanhoPagina,
+      tamanho_pagina: tamanhoPagina,
     }
 
     const resultado = await this.repository.listar(filtros)
 
-    const pedidosDTO: PedidoCompraResumoDTO[] = resultado.pedidos.map((p) => ({
-      id: p.id,
-      numeroPedido: p.numeroPedido,
-      loja: p.loja,
-      codigoFornecedor: p.codigoFornecedor,
-      nomeFornecedor: p.nomeFornecedor,
-      dataPedido: p.dataPedido.toISOString(),
-      condicaoPagamento: p.condicaoPagamento,
-      status: p.status,
-      decisaoCompra: p.decisaoCompra ?? null,
-      valorTotal: p.valorTotalPedido.toUnits(),
-      quantidadeTotalSolicitada: p.quantidadeTotalSolicitada,
-      quantidadeTotalRecebida: p.quantidadeTotalRecebida,
-      quantidadeTotalPendente: p.quantidadeTotalPendente,
-      valorTotalPendente: p.valorTotalPendente.toUnits(),
-      situacaoEntrega: p.situacaoEntregaAgregada,
-      origem: p.origem,
-      previsaoChegada: p.previsaoChegada?.toISOString() ?? null,
-    }))
+    const pedidosDTO: PedidoCompraResumoDTO[] = resultado.pedidos.map(
+      (p) => ({
+        loja: p.loja,
+        pedido: p.pedido,
+        fornecedor_codigo: p.fornecedor_codigo,
+        fornecedor_nome: p.fornecedor_nome,
+        data_pedido: p.data_pedido || null,
+        condicao_pagamento: p.condicao_pagamento,
+        quantidade_total: p.quantidade_total,
+        valor_total: p.valor_total,
+        importacao_ids: p.importacao_ids,
+        importado_em_mais_recente: p.importado_em_mais_recente || null,
+        quantidade_total_recebida: null,
+        quantidade_total_pendente: null,
+        valor_total_pendente: null,
+        situacao_entrega: null,
+        status: null,
+      }),
+    )
 
     return {
       pedidos: pedidosDTO,
       total: resultado.total,
       pagina: resultado.pagina,
-      tamanhoPagina: resultado.tamanhoPagina,
-      totalPaginas: resultado.totalPaginas,
-      temDados: resultado.pedidos.length > 0,
-      origemDados: resultado.pedidos.length > 0 ? resultado.pedidos[0]?.origem ?? null : null,
+      tamanho_pagina: resultado.tamanho_pagina,
+      total_paginas: resultado.total_paginas,
+      tem_dados: resultado.pedidos.length > 0,
+      origem_disponivel: resultado.origem_disponivel,
+      mensagem_indisponibilidade: resultado.mensagem_indisponibilidade,
     }
   }
 }
