@@ -1,7 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+import { createBrowserClient } from "@supabase/ssr"
 
 /**
  * Cria o cliente Supabase do navegador.
@@ -10,13 +7,15 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
  * ambiente estiverem definidas. Nenhum dado real é acessado sem validação
  * de segurança (`security-review`). As credenciais nunca ficam no código.
  */
-export function createSupabaseClient() {
+export function createSupabaseBrowserClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY devem ser definidas no ambiente.",
-    )
+    return null
   }
-  return createClient(supabaseUrl, supabaseAnonKey)
+
+  return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
-export { supabaseUrl, supabaseAnonKey }
+export type { SupabaseClient } from "@supabase/supabase-js"

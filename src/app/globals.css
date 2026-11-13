@@ -5,67 +5,67 @@
   --font-mono: var(--font-geist-mono);
   --radius: 0.75rem;
 
-  /* Semantic surface colors */
-  --color-background: 210 40% 98%;
-  --color-foreground: 222 84% 4.9%;
+  /* Semantic surface colors (valores CSS válidos, consumidos diretamente por bg-*) */
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
 
-  --color-card: 0 0% 100%;
-  --color-card-foreground: 222 84% 4.9%;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
 
-  --color-popover: 0 0% 100%;
-  --color-popover-foreground: 222 84% 4.9%;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0f172a;
 
   /* Brand primary */
-  --color-primary: 217 91% 50%;
-  --color-primary-foreground: 210 40% 98%;
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
 
-  --color-secondary: 210 40% 96.1%;
-  --color-secondary-foreground: 222 47.4% 11.2%;
+  --color-secondary: #f1f5f9;
+  --color-secondary-foreground: #0f172a;
 
-  --color-muted: 210 40% 96.1%;
-  --color-muted-foreground: 215 16.3% 46.9%;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
 
-  --color-accent: 210 40% 96.1%;
-  --color-accent-foreground: 222 47.4% 11.2%;
+  --color-accent: #f1f5f9;
+  --color-accent-foreground: #0f172a;
 
-  --color-destructive: 0 84.2% 60.2%;
-  --color-destructive-foreground: 210 40% 98%;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
 
-  --color-border: 214.3 31.8% 91.4%;
-  --color-input: 214.3 31.8% 91.4%;
-  --color-ring: 217 91% 50%;
+  --color-border: #e2e8f0;
+  --color-input: #e2e8f0;
+  --color-ring: #2563eb;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: 222 84% 4%;
-    --color-foreground: 210 40% 98%;
+    --color-background: #020617;
+    --color-foreground: #f8fafc;
 
-    --color-card: 222 84% 4%;
-    --color-card-foreground: 210 40% 98%;
+    --color-card: #020617;
+    --color-card-foreground: #f8fafc;
 
-    --color-popover: 222 84% 4%;
-    --color-popover-foreground: 210 40% 98%;
+    --color-popover: #020617;
+    --color-popover-foreground: #f8fafc;
 
-    --color-secondary: 217 32.6% 17.5%;
-    --color-secondary-foreground: 210 40% 98%;
+    --color-secondary: #1e293b;
+    --color-secondary-foreground: #f8fafc;
 
-    --color-muted: 217 32.6% 17.5%;
-    --color-muted-foreground: 215 20.2% 65.1%;
+    --color-muted: #1e293b;
+    --color-muted-foreground: #94a3b8;
 
-    --color-accent: 217 32.6% 17.5%;
-    --color-accent-foreground: 210 40% 98%;
+    --color-accent: #1e293b;
+    --color-accent-foreground: #f8fafc;
 
-    --color-destructive: 0 62.8% 50.6%;
-    --color-destructive-foreground: 210 40% 98%;
+    --color-destructive: #ef4444;
+    --color-destructive-foreground: #ffffff;
 
-    --color-border: 217.2 32.6% 17.5%;
-    --color-input: 217.2 32.6% 17.5%;
+    --color-border: #334155;
+    --color-input: #334155;
   }
 }
 
 body {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background-color: var(--color-background);
+  color: var(--color-foreground);
   font-family: var(--font-sans);
 }

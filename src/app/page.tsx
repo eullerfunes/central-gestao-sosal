@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { MODULES } from "@/domains/shared/modules"
+import { MODULES, isModuleAvailable, type ModuleStatus } from "@/domains/shared/modules"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -34,29 +34,41 @@ export default function Home() {
           <section className="grid gap-6 lg:grid-cols-3">
             {MODULES.map((module) => {
               const Icon = ModuleIcons[module.id] ?? Building
-              const available = module.id === "compras" && false
+              const available = isModuleAvailable(module)
+              const statusLabel: Record<ModuleStatus, string> = {
+                disponível: "Disponível",
+                "em-desenvolvimento": "Em desenvolvimento",
+                "em-breve": "Em breve",
+              }
               return (
                 <Card key={module.id} className="flex flex-col h-full">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">{module.label}</CardTitle>
                     <Badge variant={available ? "default" : "secondary"}>
-                      {available ? "Disponível" : "Em breve"}
+                      {statusLabel[module.status]}
                     </Badge>
                   </CardHeader>
                   <CardDescription className="mt-2 text-sm text-muted-foreground line-clamp-2">
                     Módulo de {module.label.toLowerCase()}.
-                    {available ? " Acesso liberado." : " Funcionalidade em planejamento."}
+                    {available
+                      ? " Acesso liberado."
+                      : module.status === "em-desenvolvimento"
+                        ? " Em desenvolvimento."
+                        : " Funcionalidade em planejamento."}
                   </CardDescription>
                   <CardContent className="flex-1 pt-0">
                     <div className="flex items-center justify-between mt-auto">
                       <Icon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                      <Link
-                        href={available ? module.path : "#"}
-                        className="text-sm font-medium transition-colors hover:underline"
-                        aria-disabled={!available}
-                      >
-                        {available ? "Abrir" : "Acompanhar"}
-                      </Link>
+                      {available ? (
+                        <Link
+                          href={module.path}
+                          className="text-sm font-medium transition-colors hover:underline"
+                        >
+                          Abrir
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Acompanhar</span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
