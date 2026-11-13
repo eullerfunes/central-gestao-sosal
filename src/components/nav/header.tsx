@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, User, HelpCircle } from "lucide-react"
+import { Bell, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MODULES, isModuleAvailable } from "@/domains/shared/modules"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleMobile}
-          className="-ml-1 flex h-8 items-center rounded-md text-muted-foreground md:hidden"
+          className="-ml-1 flex h-8 items-center rounded-md text-muted-foreground lg:hidden"
           aria-expanded={mobileOpen}
           aria-label={mobileOpen ? "Fechar menu" : "Abrir menu de navegação"}
         >
@@ -67,48 +67,37 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
         </nav>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          asChild
-          size="icon"
-          variant="outline"
-          className="hidden md:block"
-        >
-          <Link href="/ajuda">
-            <HelpCircle className="h-5 w-5" aria-label="Ajuda" />
-          </Link>
-        </Button>
-
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="relative">
-              <span className="sr-only">Notificações</span>
-              <Bell className="h-5 w-5" aria-label="Notificações" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="w-64" side="right">
-            <SheetHeader>
-              <SheetTitle>Notificações</SheetTitle>
-            </SheetHeader>
-            <div className="p-4">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                Hoje
+        <div className="flex items-center gap-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="relative">
+                <span className="sr-only">Notificações</span>
+                <Bell className="h-5 w-5" aria-label="Notificações" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-64" side="right">
+              <SheetHeader>
+                <SheetTitle>Notificações</SheetTitle>
+              </SheetHeader>
+              <div className="p-4">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                  Hoje
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="w-full">...</DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem>Sem notificações novas</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger className="w-full">...</DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem>Sem notificações novas</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
 
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground">
-          <User className="h-4 w-4" aria-hidden="true" />
-          <span className="text-xs font-medium">Usuário</span>
+          <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground">
+            <User className="h-4 w-4" aria-hidden="true" />
+            <span className="text-xs font-medium">Usuário</span>
+          </div>
         </div>
-      </div>
     </header>
   )
 }

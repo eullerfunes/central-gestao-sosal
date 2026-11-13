@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  LogOut,
   ShoppingCart,
   Package,
   CreditCard,
@@ -49,7 +48,7 @@ export function Sidebar({ open = false, onToggle }: SidebarProps) {
         <div className="flex items-center gap-2 h-12 px-4 border-b border-border">
           <button
             onClick={onToggle}
-            className="-mr-2 md:hidden p-1 rounded-md text-muted-foreground hover:bg-accent"
+            className="-mr-2 lg:hidden p-1 rounded-md text-muted-foreground hover:bg-accent"
             aria-label="Fechar menu"
             aria-expanded={isMobileOpen}
           >
@@ -66,7 +65,7 @@ export function Sidebar({ open = false, onToggle }: SidebarProps) {
         <div className="flex-1 overflow-y-auto p-4">
           <nav className="flex flex-col gap-1">
             {MODULES.map((module) => {
-              const Icon = Icons[module.icon] || LogOut
+              const Icon = Icons[module.icon] || Settings
               const available = isModuleAvailable(module)
               const isActive = pathname === module.path || pathname.startsWith(`${module.path}/`)
               if (!available) {
@@ -105,13 +104,10 @@ export function Sidebar({ open = false, onToggle }: SidebarProps) {
         </div>
 
         <div className="border-t border-border p-4">
-          <Link
-            href="/sair"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          >
-            <LogOut className="h-5 w-5" aria-hidden="true" />
-            <span>Sair</span>
-          </Link>
+          <span className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground">
+            <span className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+            <span>Sair (em breve)</span>
+          </span>
         </div>
       </div>
     </aside>

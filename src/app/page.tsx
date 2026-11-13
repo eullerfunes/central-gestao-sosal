@@ -17,9 +17,8 @@ const ModuleIcons: Record<string, React.ElementType> = {
 
 export default function Home() {
   return (
-    <div className="flex flex-col h-full">
-      <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex flex-col flex-1">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="text-center lg:text-left mb-12">
             <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Central de Gestão <span className="text-primary">Só Sal</span>
@@ -128,7 +127,6 @@ export default function Home() {
             </Card>
           </section>
         </div>
-      </main>
-    </div>
+      </div>
   )
 }
