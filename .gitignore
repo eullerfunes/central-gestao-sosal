@@ -9,6 +9,9 @@ out/
 build/
 dist/
 
+# TypeScript build info
+*.tsbuildinfo
+
 # Testes
 coverage/
 *.lcov

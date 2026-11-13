@@ -56,3 +56,17 @@ Ver `AGENTS.md`. Destaques:
 - Definir regras de negócio de compras com base em documentação formal do domínio.
 - Integrar com Supabase existente (sem migrations).
 - Preparar contratos de integração SISCOM quando solicitado.
+
+## 8. Comandos disponíveis
+
+| Comando | Finalidade |
+|---------|------------|
+| `npm install` | Instala dependências |
+| `npm run dev` | Servidor de desenvolvimento (localhost:3000) |
+| `npm run build` | Build de produção |
+| `npm run start` | Servidor de produção (após build) |
+| `npm run lint` | ESLint |
+| `npx tsc --noEmit` | Verificação de tipos TypeScript |
+| `npm test` | Testes unitários (Vitest) |
+| `npm run test:watch` | Testes em modo watch |
+
