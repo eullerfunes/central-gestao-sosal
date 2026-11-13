@@ -169,7 +169,10 @@ describe("reconciliarRegistros", () => {
     expect(resultado.pedidosAgrupados[0].valor_total).toBe(637.5)
   })
 
-  it("nao deve sinalizar ambiguidade quando mesmo produto tem mesma quantidade em importacoes distintas", () => {
+  it("deve sinalizar ambiguidade quando mesmo produto tem mesma quantidade em importacoes distintas", () => {
+    // Mesmo produto em duas importacoes diferentes: identidade nao pode ser
+    // determinada com segurança (mesma linha repetida ou compras distintas?).
+    // Totais nao sao confiáveis.
     const registros = [
       reg({
         importacao_id: "imp-001",
@@ -190,8 +193,11 @@ describe("reconciliarRegistros", () => {
     ]
     const resultado = reconciliarRegistros(registros)
 
-    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
-    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).toBeNull()
+    expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
+    expect(resultado.pedidosAgrupados[0].quantidade_total).toBe(20)
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(true)
+    expect(resultado.pedidosAgrupados[0].totaisConfiaveis).toBe(false)
+    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).not.toBeNull()
   })
 
   it("deve sinalizar ambiguidade para linhas deslocadas entre importacoes", () => {
@@ -214,8 +220,10 @@ describe("reconciliarRegistros", () => {
     ]
     const resultado = reconciliarRegistros(registros)
 
-    // linha_excel mudou (1 -> 7) mas quantidade e a mesma, nao e ambiguidade
-    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
+    // Mesmo produto em duas importacoes diferentes: identidade nao pode ser
+    // determinada com segurança. Ambiguo, totais nao confiáveis.
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(true)
+    expect(resultado.pedidosAgrupados[0].totaisConfiaveis).toBe(false)
     // Ambas as versoes sao preservadas (sem deduplicacao destrutiva)
     expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
     expect(resultado.pedidosAgrupados[0].items[0].linha_excel).toBe(1)
@@ -254,7 +262,9 @@ describe("reconciliarRegistros", () => {
     expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).not.toBeNull()
   })
 
-  it("nao deve sinalizar inconsistencia quando mesmo produto aparece uma vez por importacao com mesma quantidade", () => {
+  it("deve sinalizar ambiguidade quando mesmo produto aparece uma vez por importacao com mesma quantidade", () => {
+    // Mesmo produto em duas importacoes diferentes: identidade nao pode ser
+    // determinada com segurança. Totais nao confiáveis.
     const registros = [
       reg({
         importacao_id: "imp-001",
@@ -276,9 +286,10 @@ describe("reconciliarRegistros", () => {
     const resultado = reconciliarRegistros(registros)
 
     expect(resultado.pedidosAgrupados[0].items).toHaveLength(2)
-    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(false)
-    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).toBeNull()
     expect(resultado.pedidosAgrupados[0].quantidade_total).toBe(20)
+    expect(resultado.pedidosAgrupados[0].tem_ambiguidade).toBe(true)
+    expect(resultado.pedidosAgrupados[0].totaisConfiaveis).toBe(false)
+    expect(resultado.pedidosAgrupados[0].mensagem_ambiguidade).not.toBeNull()
   })
 
   it("deve lidar com produto repetido em pedidos diferentes", () => {

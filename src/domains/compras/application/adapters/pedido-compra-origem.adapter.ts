@@ -61,6 +61,7 @@ export function adaptarRegistrosDeOrigem(
         importado_em_mais_recente: reg.importado_em,
         tem_ambiguidade: false,
         mensagem_ambiguidade: null,
+        totaisConfiaveis: true,
       })
     }
   }

@@ -49,4 +49,7 @@ export interface PedidoCompraAgrupado {
   tem_ambiguidade: boolean
   /** Mensagem descritiva da ambiguidade, quando presente */
   mensagem_ambiguidade: string | null
+  /** Indica se os totais consolidados são confiáveis (definitivos).
+   *  Quando falso, os totais são exibidos mas não devem ser tratados como definitivos. */
+  totaisConfiaveis: boolean
 }

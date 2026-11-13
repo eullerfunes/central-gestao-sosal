@@ -20,6 +20,8 @@ export interface PedidoCompraResumoDTO {
   tem_ambiguidade: boolean
   /** Mensagem descritiva da ambiguidade, quando presente */
   mensagem_ambiguidade: string | null
+  /** Indica se os totais consolidados são confiáveis (definitivos). */
+  totaisConfiaveis: boolean
   /* Campos indisponíveis na view — nunca preenchidos com zero */
   quantidade_total_recebida: null
   quantidade_total_pendente: null

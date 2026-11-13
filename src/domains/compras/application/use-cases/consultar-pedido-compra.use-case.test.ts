@@ -42,6 +42,7 @@ describe("ConsultarPedidoCompraUseCase", () => {
       ],
       tem_ambiguidade: false,
       mensagem_ambiguidade: null,
+      totaisConfiaveis: true,
     })
 
     const resultado = await useCase.executar("Loja 01", "PED-001")

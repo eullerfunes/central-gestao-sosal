@@ -55,6 +55,7 @@ export class ConsultarPedidoCompraUseCase {
       importado_em_mais_recente: pedidoAgrupado.importado_em_mais_recente || null,
       tem_ambiguidade: pedidoAgrupado.tem_ambiguidade,
       mensagem_ambiguidade: pedidoAgrupado.mensagem_ambiguidade,
+      totaisConfiaveis: pedidoAgrupado.totaisConfiaveis,
       quantidade_total_recebida: null,
       quantidade_total_pendente: null,
       valor_total_pendente: null,

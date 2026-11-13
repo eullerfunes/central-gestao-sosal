@@ -28,6 +28,7 @@ describe("ListarPedidosCompraUseCase", () => {
           importado_em_mais_recente: "2026-01-10T10:00:00Z",
           tem_ambiguidade: false,
           mensagem_ambiguidade: null,
+          totaisConfiaveis: true,
         },
       ],
       total: 1,

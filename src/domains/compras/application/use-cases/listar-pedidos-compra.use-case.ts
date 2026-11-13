@@ -47,6 +47,7 @@ export class ListarPedidosCompraUseCase {
         importado_em_mais_recente: p.importado_em_mais_recente || null,
         tem_ambiguidade: p.tem_ambiguidade,
         mensagem_ambiguidade: p.mensagem_ambiguidade,
+        totaisConfiaveis: p.totaisConfiaveis,
         quantidade_total_recebida: null,
         quantidade_total_pendente: null,
         valor_total_pendente: null,

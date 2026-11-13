@@ -18,4 +18,5 @@ export const MODULES: Module[] = [
   { id: "administracao", label: "Administração", path: "/administracao", icon: "Settings", status: "em-breve" },
 ]
 
-export const isModuleAvailable = (module: Module) => module.status === "disponível"
+export const isModuleAvailable = (module: Module) =>
+  module.status === "disponível" || module.status === "em-desenvolvimento"
