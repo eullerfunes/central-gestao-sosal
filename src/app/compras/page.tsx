@@ -6,9 +6,6 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 
-export const dynamic = "force-dynamic"
-export const revalidate = 0
-
 type SearchParams = Record<string, string | string[] | undefined>
 type Props = { searchParams: Promise<SearchParams> }
 
