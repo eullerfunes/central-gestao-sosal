@@ -1,37 +1,26 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
-/**
- * Cria o cliente Supabase do servidor para Server Components / API Routes.
- *
- * Usa @supabase/ssr com separação correta de sessões e cookies via
- * next/headers. Preparação apenas: instancia-se somente quando as variáveis
- * de ambiente estiverem definidas. Não acessa dados reais sem validação
- * de segurança (`security-review`). Credenciais nunca em código.
- */
+/** Cliente SSR com acesso apenas à chave pública e à sessão do usuário. */
 export async function createSupabaseServerClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return null
-  }
+  if (!url || !key) return null
+  const store = await cookies()
 
-  const cookieStore = await cookies()
-
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(url, key, {
     cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll(cookiesToSet) {
+      getAll: () => store.getAll(),
+      setAll(toSet) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
+          toSet.forEach(({ name, value, options }) =>
+            store.set(name, value, options),
           )
         } catch {
-          // O setAll pode falhar em Server Components de somente leitura.
-          // Isso é esperado: o cliente ainda pode ler cookies de sessão.
+          // Server Components de leitura não podem atualizar cookies.
         }
       },
     },

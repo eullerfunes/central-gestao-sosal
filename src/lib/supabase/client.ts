@@ -1,21 +1,14 @@
 import { createBrowserClient } from "@supabase/ssr"
 
-/**
- * Cria o cliente Supabase do navegador.
- *
- * Preparação apenas: o cliente só é instanciado quando as variáveis de
- * ambiente estiverem definidas. Nenhum dado real é acessado sem validação
- * de segurança (`security-review`). As credenciais nunca ficam no código.
- */
+/** Cliente público, com sessões por cookies. Nunca utiliza service_role. */
 export function createSupabaseBrowserClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return null
-  }
-
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  if (!url || !key) return null
+  return createBrowserClient(url, key)
 }
 
 export type { SupabaseClient } from "@supabase/supabase-js"

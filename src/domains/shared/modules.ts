@@ -9,7 +9,7 @@ export interface Module {
 }
 
 export const MODULES: Module[] = [
-  { id: "compras", label: "Compras", path: "/compras", icon: "ShoppingCart", status: "em-desenvolvimento" },
+  { id: "compras", label: "Compras", path: "/compras", icon: "ShoppingCart", status: "disponível" },
   { id: "estoque", label: "Estoque", path: "/estoque", icon: "Package", status: "em-breve" },
   { id: "financeiro", label: "Financeiro", path: "/financeiro", icon: "CreditCard", status: "em-breve" },
   { id: "comercial", label: "Comercial", path: "/comercial", icon: "Store", status: "em-breve" },
