@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Suspense } from "react"
 import {
   AlertCircle, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, ClipboardList,
   Clock3, Search, ShieldCheck, ShoppingCart, Wallet, CalendarDays,
@@ -96,7 +97,19 @@ function Metric({ label, value, footnote, icon: Icon }: {
   )
 }
 
-export default async function ComprasPage({ searchParams }: Props) {
+export default function ComprasPage({ searchParams }: Props) {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-xl py-20 text-center text-sm text-slate-500" role="status">
+        Carregando consulta de pedidos...
+      </div>
+    }>
+      <ComprasContent searchParams={searchParams} />
+    </Suspense>
+  )
+}
+
+async function ComprasContent({ searchParams }: Props) {
   const supabase = await createSupabaseServerClient()
   if (!supabase) return <ComprasLogin configured={false} />
 
